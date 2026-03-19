@@ -7,7 +7,7 @@ import React, { Component, useState, useEffect, useCallback, useRef } from 'reac
 import { 
   Plus, Trash2, Save, Download, Upload, Search, FileSpreadsheet, 
   AlertCircle, Check, BarChart3, PieChart as PieChartIcon, 
-  LayoutDashboard, X, Share2, LogIn, LogOut, ExternalLink, Copy
+  LayoutDashboard, X, Share2, ExternalLink, Copy
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
@@ -70,12 +70,7 @@ class ErrorBoundary extends Component<any, any> {
   }
 }
 
-// Firebase imports
-import { 
-  db, auth, googleProvider, signInWithPopup, onAuthStateChanged, User,
-  collection, doc, setDoc, deleteDoc, onSnapshot, query, orderBy, serverTimestamp,
-  handleFirestoreError, OperationType
-} from './firebase';
+
 
 interface RowData {
   id: string;
@@ -103,16 +98,16 @@ const DEFAULT_ROW = (): RowData => ({
   isConfirmed: false,
 });
 
+// Local Storage Key
+const STORAGE_KEY = 'sfi_2026_data';
+
 export default function App() {
   const [rows, setRows] = useState<RowData[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [isLoaded, setIsLoaded] = useState(false);
   const [showDashboard, setShowDashboard] = useState(false);
-  const [user, setUser] = useState<User | null>(null);
-  const [isAuthReady, setIsAuthReady] = useState(false);
   const [isDashboardOnly, setIsDashboardOnly] = useState(false);
   const [copySuccess, setCopySuccess] = useState(false);
-  const [isMigrating, setIsMigrating] = useState(false);
 
   // Check if we are in "Dashboard Only" mode via URL
   useEffect(() => {
@@ -123,109 +118,36 @@ export default function App() {
     }
   }, []);
 
-  // Auth Listener
+  // Load data from localStorage
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      setUser(currentUser);
-      setIsAuthReady(true);
-    });
-    return () => unsubscribe();
+    const savedData = localStorage.getItem(STORAGE_KEY);
+    if (savedData) {
+      try {
+        setRows(JSON.parse(savedData));
+      } catch (e) {
+        console.error("Failed to parse saved data", e);
+        setRows([]);
+      }
+    }
+    setIsLoaded(true);
   }, []);
 
-  // Firestore Sync
+  // Save data to localStorage whenever rows change
   useEffect(() => {
-    if (!isAuthReady) return;
-
-    const q = query(collection(db, 'spreadsheet_rows'), orderBy('createdAt', 'asc'));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const data = snapshot.docs.map(doc => doc.data() as RowData);
-      setRows(data);
-      setIsLoaded(true);
-    }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, 'spreadsheet_rows');
-    });
-
-    return () => unsubscribe();
-  }, [isAuthReady]);
-
-  // Migration from localStorage
-  useEffect(() => {
-    if (!user || !isLoaded || isMigrating) return;
-
-    const migrateData = async () => {
-      const localData = localStorage.getItem('sfi_2026_rows');
-      if (localData) {
-        try {
-          const localRows: RowData[] = JSON.parse(localData);
-          if (localRows.length > 0) {
-            // Check if we already have data in Firestore
-            if (rows.length === 0) {
-              setIsMigrating(true);
-              console.log("Migrating local data to Firestore...");
-              for (const row of localRows) {
-                try {
-                  await setDoc(doc(db, 'spreadsheet_rows', row.id), {
-                    ...row,
-                    createdAt: serverTimestamp(),
-                    updatedAt: serverTimestamp()
-                  }, { merge: true });
-                } catch (error) {
-                  handleFirestoreError(error, OperationType.CREATE, `spreadsheet_rows/${row.id}`);
-                }
-              }
-              // Clear local storage after migration
-              localStorage.removeItem('sfi_2026_rows');
-              console.log("Migration complete!");
-              setIsMigrating(false);
-            }
-          }
-        } catch (error) {
-          console.error("Migration failed:", error);
-          setIsMigrating(false);
-        }
-      }
-    };
-
-    migrateData();
-  }, [user, isLoaded, rows.length, isMigrating]);
-
-  const login = async () => {
-    try {
-      await signInWithPopup(auth, googleProvider);
-    } catch (error) {
-      console.error("Login failed:", error);
+    if (isLoaded) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(rows));
     }
-  };
+  }, [rows, isLoaded]);
 
-  const logout = () => auth.signOut();
-
-  const addRow = async () => {
-    if (!user) {
-      alert("Por favor, faça login para adicionar dados.");
-      return;
-    }
+  const addRow = () => {
     const newRow = DEFAULT_ROW();
-    try {
-      await setDoc(doc(db, 'spreadsheet_rows', newRow.id), {
-        ...newRow,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
-      });
-    } catch (error) {
-      handleFirestoreError(error, OperationType.CREATE, `spreadsheet_rows/${newRow.id}`);
-    }
+    setRows(prev => [...prev, newRow]);
   };
 
-  const updateRow = async (id: string, field: keyof RowData, value: any) => {
-    if (!user) return;
-    try {
-      await setDoc(doc(db, 'spreadsheet_rows', id), {
-        [field]: value,
-        updatedAt: serverTimestamp()
-      }, { merge: true });
-    } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, `spreadsheet_rows/${id}`);
-    }
+  const updateRow = (id: string, field: keyof RowData, value: any) => {
+    setRows(prev => prev.map(row => 
+      row.id === id ? { ...row, [field]: value } : row
+    ));
   };
 
   const toggleConfirm = (id: string) => {
@@ -235,14 +157,9 @@ export default function App() {
     }
   };
 
-  const deleteRow = async (id: string) => {
-    if (!user) return;
+  const deleteRow = (id: string) => {
     if (window.confirm('Tem certeza que deseja excluir esta linha?')) {
-      try {
-        await deleteDoc(doc(db, 'spreadsheet_rows', id));
-      } catch (error) {
-        handleFirestoreError(error, OperationType.DELETE, `spreadsheet_rows/${id}`);
-      }
+      setRows(prev => prev.filter(row => row.id !== id));
     }
   };
 
@@ -305,7 +222,7 @@ export default function App() {
     setTimeout(() => setCopySuccess(false), 2000);
   };
 
-  if (!isLoaded && isAuthReady) {
+  if (!isLoaded) {
     return (
       <div className="min-h-screen bg-[#F8FAFC] flex items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
@@ -317,17 +234,7 @@ export default function App() {
     <ErrorBoundary>
       <div className="min-h-screen bg-[#F8FAFC] font-sans text-slate-900 selection:bg-blue-100 selection:text-blue-900">
         <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 py-10">
-          {/* Migration Banner */}
-          {isMigrating && (
-            <div className="mb-8 bg-blue-600 text-white px-6 py-4 rounded-2xl shadow-xl shadow-blue-500/20 flex items-center justify-between animate-pulse">
-              <div className="flex items-center gap-4">
-                <div className="bg-white/20 p-2 rounded-lg">
-                  <Upload size={20} />
-                </div>
-                <span className="font-bold tracking-tight">Sincronizando dados locais com a nuvem...</span>
-              </div>
-            </div>
-          )}
+
           
           {/* Header Section */}
           <header className="mb-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
@@ -373,24 +280,6 @@ export default function App() {
                   {copySuccess ? <Check size={16} className="text-emerald-500" /> : <Share2 size={16} />}
                   {copySuccess ? 'Copiado' : 'Compartilhar'}
                 </button>
-
-                {user ? (
-                  <button 
-                    onClick={logout}
-                    className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-xl text-sm font-black uppercase tracking-wider hover:bg-rose-50 hover:text-rose-600 hover:border-rose-200 transition-all text-slate-700 shadow-sm"
-                  >
-                    <LogOut size={16} />
-                    Sair
-                  </button>
-                ) : (
-                  <button 
-                    onClick={login}
-                    className="flex items-center gap-2 px-6 py-2 bg-blue-600 text-white rounded-xl text-sm font-black uppercase tracking-wider hover:bg-blue-700 transition-all shadow-md shadow-blue-200"
-                  >
-                    <LogIn size={16} />
-                    Entrar
-                  </button>
-                )}
               </div>
             )}
 
@@ -510,12 +399,12 @@ export default function App() {
                   </p>
                 </div>
                 <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4 transition-all hover:shadow-md group">
-                  <div className={`p-3 rounded-xl transition-all group-hover:scale-110 ${user ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'}`}>
-                    {user ? <Check size={24} strokeWidth={3} /> : <AlertCircle size={24} strokeWidth={3} />}
+                  <div className="p-3 rounded-xl transition-all group-hover:scale-110 bg-blue-50 text-blue-600">
+                    <Check size={24} strokeWidth={3} />
                   </div>
                   <div>
                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-0.5">Status do Sistema</p>
-                    <p className="text-base font-black text-slate-800 tracking-tight">{user ? 'Sincronizado' : 'Somente Leitura'}</p>
+                    <p className="text-base font-black text-slate-800 tracking-tight">Offline (Local)</p>
                   </div>
                 </div>
               </div>
@@ -573,9 +462,8 @@ export default function App() {
                                   <input 
                                     type="text" 
                                     value={row.neNumber}
-                                    disabled={!user}
                                     onChange={(e) => updateRow(row.id, 'neNumber', e.target.value)}
-                                    className="w-full bg-transparent focus:outline-none text-sm font-mono font-bold text-slate-700 placeholder:text-slate-300 disabled:cursor-not-allowed"
+                                    className="w-full bg-transparent focus:outline-none text-sm font-mono font-bold text-slate-700 placeholder:text-slate-300"
                                     placeholder="0000NE00000"
                                   />
                                 </div>
@@ -584,18 +472,16 @@ export default function App() {
                                 <input 
                                   type="date" 
                                   value={row.obDate}
-                                  disabled={!user}
                                   onChange={(e) => updateRow(row.id, 'obDate', e.target.value)}
-                                  className="w-full px-6 py-4 bg-transparent focus:outline-none focus:bg-white focus:ring-4 focus:ring-inset focus:ring-blue-500/10 text-sm font-mono font-semibold text-slate-600 disabled:cursor-not-allowed"
+                                  className="w-full px-6 py-4 bg-transparent focus:outline-none focus:bg-white focus:ring-4 focus:ring-inset focus:ring-blue-500/10 text-sm font-mono font-semibold text-slate-600"
                                 />
                               </td>
                               <td className="p-0 border-r border-slate-200">
                                 <input 
                                   type="number" 
                                   value={row.obValidityDays}
-                                  disabled={!user}
                                   onChange={(e) => updateRow(row.id, 'obValidityDays', e.target.value)}
-                                  className="w-full px-6 py-4 bg-transparent focus:outline-none focus:bg-white focus:ring-4 focus:ring-inset focus:ring-blue-500/10 text-sm text-center font-mono font-bold text-slate-500 disabled:cursor-not-allowed"
+                                  className="w-full px-6 py-4 bg-transparent focus:outline-none focus:bg-white focus:ring-4 focus:ring-inset focus:ring-blue-500/10 text-sm text-center font-mono font-bold text-slate-500"
                                   placeholder="30"
                                 />
                               </td>
@@ -603,9 +489,8 @@ export default function App() {
                                 <input 
                                   type="text" 
                                   value={row.value}
-                                  disabled={!user}
                                   onChange={(e) => updateRow(row.id, 'value', e.target.value)}
-                                  className="w-full px-6 py-4 bg-transparent focus:outline-none focus:bg-white focus:ring-4 focus:ring-inset focus:ring-blue-500/10 text-sm font-mono text-right font-bold text-blue-600 disabled:cursor-not-allowed"
+                                  className="w-full px-6 py-4 bg-transparent focus:outline-none focus:bg-white focus:ring-4 focus:ring-inset focus:ring-blue-500/10 text-sm font-mono text-right font-bold text-blue-600"
                                   placeholder="0,00"
                                 />
                               </td>
@@ -613,39 +498,35 @@ export default function App() {
                                 <input 
                                   type="date" 
                                   value={row.reDate}
-                                  disabled={!user}
                                   onChange={(e) => updateRow(row.id, 'reDate', e.target.value)}
-                                  className="w-full px-6 py-4 bg-transparent focus:outline-none focus:bg-white focus:ring-4 focus:ring-inset focus:ring-blue-500/10 text-sm font-mono font-semibold text-slate-600 disabled:cursor-not-allowed"
+                                  className="w-full px-6 py-4 bg-transparent focus:outline-none focus:bg-white focus:ring-4 focus:ring-inset focus:ring-blue-500/10 text-sm font-mono font-semibold text-slate-600"
                                 />
                               </td>
                               <td className="p-0 border-r border-slate-200">
                                 <input 
                                   type="date" 
                                   value={row.prestacaoDate}
-                                  disabled={!user}
                                   onChange={(e) => updateRow(row.id, 'prestacaoDate', e.target.value)}
-                                  className="w-full px-6 py-4 bg-transparent focus:outline-none focus:bg-white focus:ring-4 focus:ring-inset focus:ring-blue-500/10 text-sm font-mono font-semibold text-slate-600 disabled:cursor-not-allowed"
+                                  className="w-full px-6 py-4 bg-transparent focus:outline-none focus:bg-white focus:ring-4 focus:ring-inset focus:ring-blue-500/10 text-sm font-mono font-semibold text-slate-600"
                                 />
                               </td>
                               <td className="p-0 border-r border-slate-200">
                                 <input 
                                   type="date" 
                                   value={row.vencimentoDate}
-                                  disabled={!user}
                                   onChange={(e) => updateRow(row.id, 'vencimentoDate', e.target.value)}
-                                  className="w-full px-6 py-4 bg-transparent focus:outline-none focus:bg-white focus:ring-4 focus:ring-inset focus:ring-blue-500/10 text-sm font-mono font-semibold text-slate-600 disabled:cursor-not-allowed"
+                                  className="w-full px-6 py-4 bg-transparent focus:outline-none focus:bg-white focus:ring-4 focus:ring-inset focus:ring-blue-500/10 text-sm font-mono font-semibold text-slate-600"
                                 />
                               </td>
                               <td className="p-0 border-r border-slate-200">
                                 <div className="flex items-center px-4 py-1 gap-3">
                                   <button 
                                     onClick={() => toggleConfirm(row.id)}
-                                    disabled={!user}
                                     className={`flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center transition-all shadow-sm ${
                                       row.isConfirmed 
                                         ? 'bg-emerald-500 text-white shadow-emerald-200' 
                                         : 'bg-white border border-slate-200 text-slate-300 hover:text-slate-500 hover:border-slate-300'
-                                    } disabled:opacity-50 disabled:cursor-not-allowed active:scale-90`}
+                                    } active:scale-90`}
                                     title={row.isConfirmed ? 'Confirmado' : 'Marcar como lançado'}
                                   >
                                     {row.isConfirmed ? <Check size={18} strokeWidth={3} /> : <Check size={18} />}
@@ -653,9 +534,8 @@ export default function App() {
                                   <input 
                                     type="text" 
                                     value={row.lancadoPlanilha}
-                                    disabled={!user}
                                     onChange={(e) => updateRow(row.id, 'lancadoPlanilha', e.target.value)}
-                                    className={`w-full py-3 bg-transparent focus:outline-none text-sm font-medium placeholder:text-slate-300 disabled:cursor-not-allowed ${row.isConfirmed ? 'text-emerald-700' : 'text-slate-600'}`}
+                                    className={`w-full py-3 bg-transparent focus:outline-none text-sm font-medium placeholder:text-slate-300 ${row.isConfirmed ? 'text-emerald-700' : 'text-slate-600'}`}
                                     placeholder="Observações..."
                                   />
                                 </div>
@@ -663,8 +543,7 @@ export default function App() {
                               <td className="px-4 py-0 text-center">
                                 <button 
                                   onClick={() => deleteRow(row.id)}
-                                  disabled={!user}
-                                  className="p-3 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-xl transition-all opacity-0 group-hover:opacity-100 disabled:hidden active:scale-90"
+                                  className="p-3 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-xl transition-all opacity-0 group-hover:opacity-100 active:scale-90"
                                   title="Excluir linha"
                                 >
                                   <Trash2 size={18} />
@@ -681,16 +560,15 @@ export default function App() {
                 <div className="p-6 bg-slate-50/50 border-t border-slate-200 flex flex-col sm:flex-row justify-between items-center gap-6">
                   <button 
                     onClick={addRow}
-                    disabled={!user}
-                    className="w-full sm:w-auto flex items-center justify-center gap-3 px-8 py-3 bg-blue-600 text-white rounded-xl text-sm font-black uppercase tracking-wider hover:bg-blue-700 active:scale-95 transition-all shadow-lg shadow-blue-500/20 disabled:bg-slate-400 disabled:shadow-none disabled:cursor-not-allowed"
+                    className="w-full sm:w-auto flex items-center justify-center gap-3 px-8 py-3 bg-blue-600 text-white rounded-xl text-sm font-black uppercase tracking-wider hover:bg-blue-700 active:scale-95 transition-all shadow-lg shadow-blue-500/20"
                   >
                     <Plus size={20} strokeWidth={3} />
                     Adicionar Nova Linha
                   </button>
                   <div className="flex items-center gap-3 px-4 py-2 bg-white border border-slate-200 rounded-xl shadow-sm">
-                    <div className={`w-2 h-2 rounded-full ${user ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`} />
+                    <div className="w-2 h-2 rounded-full bg-blue-500" />
                     <p className="text-[10px] text-slate-500 font-black uppercase tracking-wider">
-                      {user ? 'Sincronizado com a nuvem' : 'Modo de visualização'}
+                      Armazenamento Local Ativo
                     </p>
                   </div>
                 </div>
