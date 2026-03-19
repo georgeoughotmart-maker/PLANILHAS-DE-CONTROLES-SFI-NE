@@ -1,0 +1,30 @@
+{
+  "entities": {
+    "spreadsheet_row": {
+      "title": "Spreadsheet Row",
+      "description": "A row in the SFI 2026 control spreadsheet",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique ID for the row" },
+        "neNumber": { "type": "string", "description": "Nota de Empenho number" },
+        "obDate": { "type": "string", "description": "Ordem Bancária date" },
+        "obValidityDays": { "type": "string", "description": "Validity days for the OB" },
+        "value": { "type": "string", "description": "Financial value" },
+        "reDate": { "type": "string", "description": "RE date" },
+        "prestacaoDate": { "type": "string", "description": "Prestação de contas date" },
+        "vencimentoDate": { "type": "string", "description": "Vencimento date" },
+        "lancadoPlanilha": { "type": "string", "description": "Observations or spreadsheet status" },
+        "isConfirmed": { "type": "boolean", "description": "Whether the item is confirmed as launched" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Creation timestamp" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Last update timestamp" }
+      },
+      "required": ["id", "neNumber"]
+    }
+  },
+  "firestore": {
+    "/spreadsheet_rows/{rowId}": {
+      "schema": "spreadsheet_row",
+      "description": "Collection of spreadsheet rows for SFI 2026"
+    }
+  }
+}
