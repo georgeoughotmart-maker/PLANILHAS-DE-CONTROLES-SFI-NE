@@ -238,13 +238,15 @@ export default function App() {
           
           {/* Header Section */}
           <header className="mb-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
-            <div className="flex items-center gap-3">
-              <FileSpreadsheet className="text-blue-600" size={28} />
+            <div className="flex items-center gap-4">
+              <div className="p-3 bg-blue-600 rounded-2xl shadow-lg shadow-blue-200">
+                <FileSpreadsheet className="text-white" size={24} />
+              </div>
               <div>
-                <h1 className="text-2xl font-black tracking-tight text-slate-900">
+                <h1 className="text-3xl font-black tracking-tight text-slate-900 leading-none mb-1">
                   Controle SFI 2026
                 </h1>
-                <p className="text-slate-500 text-[10px] font-black uppercase tracking-[0.2em]">Gestão de Notas de Empenho e Ordens Bancárias</p>
+                <p className="text-blue-600 text-[10px] font-black uppercase tracking-[0.25em]">Gestão de Notas de Empenho e Ordens Bancárias</p>
               </div>
             </div>
 
@@ -255,7 +257,7 @@ export default function App() {
                   <input 
                     type="text" 
                     placeholder="Pesquisar..." 
-                    className="pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all w-full md:w-64 shadow-sm"
+                    className="pl-10 pr-4 py-2 bg-white border border-blue-100 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all w-full md:w-64 shadow-sm"
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                   />
@@ -303,7 +305,7 @@ export default function App() {
                 exit={{ opacity: 0, height: 0 }}
                 className="overflow-hidden mb-8"
               >
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 bg-white p-6 rounded-2xl border border-blue-100 shadow-sm">
                   <div className="h-[300px]">
                     <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
                       <BarChart3 size={16} className="text-blue-500" />
@@ -385,21 +387,21 @@ export default function App() {
             <>
               {/* Stats Summary */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm transition-all hover:shadow-md group">
+                <div className="bg-white p-6 rounded-2xl border border-blue-100 shadow-sm transition-all hover:shadow-md hover:border-blue-200 group">
                   <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-3">Total de Registros</p>
                   <div className="flex items-baseline gap-2">
                     <p className="text-4xl font-black text-slate-900 group-hover:text-blue-600 transition-colors">{rows.length}</p>
                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">itens</p>
                   </div>
                 </div>
-                <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm transition-all hover:shadow-md group">
+                <div className="bg-white p-6 rounded-2xl border border-emerald-100 shadow-sm transition-all hover:shadow-md hover:border-emerald-200 group">
                   <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-3">Valor Total Acumulado</p>
-                  <p className="text-3xl font-black text-blue-600 tracking-tighter group-hover:scale-[1.02] origin-left transition-transform">
+                  <p className="text-3xl font-black text-emerald-600 tracking-tighter group-hover:scale-[1.02] origin-left transition-transform">
                     {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(totalValue)}
                   </p>
                 </div>
                 <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4 transition-all hover:shadow-md group">
-                  <div className="p-3 rounded-xl transition-all group-hover:scale-110 bg-blue-50 text-blue-600">
+                  <div className="p-3 rounded-xl transition-all group-hover:scale-110 bg-blue-50 text-blue-600 border border-blue-100">
                     <Check size={24} strokeWidth={3} />
                   </div>
                   <div>
@@ -410,20 +412,20 @@ export default function App() {
               </div>
 
               {/* Main Table Container */}
-              <div className="bg-white rounded-2xl border border-slate-200 shadow-xl shadow-slate-200/40 overflow-hidden">
+              <div className="bg-white rounded-2xl border border-blue-100 shadow-xl shadow-blue-500/5 overflow-hidden">
                 <div className="overflow-x-auto">
                   <table className="w-full border-collapse text-left">
                     <thead>
-                      <tr className="bg-slate-50/50 border-b border-slate-200">
-                        <th className="px-6 py-4 text-[11px] font-bold text-slate-600 uppercase tracking-[0.15em] border-r border-slate-200 w-44">Identificação NE</th>
-                        <th className="px-6 py-4 text-[11px] font-bold text-slate-600 uppercase tracking-[0.15em] border-r border-slate-200 w-36">Data da OB</th>
-                        <th className="px-6 py-4 text-[11px] font-bold text-slate-600 uppercase tracking-[0.15em] border-r border-slate-200 w-28 text-center">Validade</th>
-                        <th className="px-6 py-4 text-[11px] font-bold text-slate-600 uppercase tracking-[0.15em] border-r border-slate-200 w-36 text-right">Valor Bruto</th>
-                        <th className="px-6 py-4 text-[11px] font-bold text-slate-600 uppercase tracking-[0.15em] border-r border-slate-200 w-36">Data RE</th>
-                        <th className="px-6 py-4 text-[11px] font-bold text-slate-600 uppercase tracking-[0.15em] border-r border-slate-200 w-36">Prestação</th>
-                        <th className="px-6 py-4 text-[11px] font-bold text-slate-600 uppercase tracking-[0.15em] border-r border-slate-200 w-36">Vencimento</th>
-                        <th className="px-6 py-4 text-[11px] font-bold text-slate-600 uppercase tracking-[0.15em] border-r border-slate-200">Observações Gerais</th>
-                        <th className="px-6 py-4 text-[11px] font-bold text-slate-600 uppercase tracking-[0.15em] w-20 text-center">Status</th>
+                      <tr className="bg-slate-50/80 border-b border-blue-100">
+                        <th className="px-6 py-4 text-[11px] font-black text-slate-500 uppercase tracking-[0.15em] border-r border-blue-50 w-44">Identificação NE</th>
+                        <th className="px-6 py-4 text-[11px] font-black text-slate-500 uppercase tracking-[0.15em] border-r border-blue-50 w-36">Data da OB</th>
+                        <th className="px-6 py-4 text-[11px] font-black text-slate-500 uppercase tracking-[0.15em] border-r border-blue-50 w-28 text-center">Validade</th>
+                        <th className="px-6 py-4 text-[11px] font-black text-slate-500 uppercase tracking-[0.15em] border-r border-blue-50 w-36 text-right">Valor Bruto</th>
+                        <th className="px-6 py-4 text-[11px] font-black text-slate-500 uppercase tracking-[0.15em] border-r border-blue-50 w-36">Data RE</th>
+                        <th className="px-6 py-4 text-[11px] font-black text-slate-500 uppercase tracking-[0.15em] border-r border-blue-50 w-36">Prestação</th>
+                        <th className="px-6 py-4 text-[11px] font-black text-slate-500 uppercase tracking-[0.15em] border-r border-blue-50 w-36">Vencimento</th>
+                        <th className="px-6 py-4 text-[11px] font-black text-slate-500 uppercase tracking-[0.15em] border-r border-blue-50">Observações Gerais</th>
+                        <th className="px-6 py-4 text-[11px] font-black text-slate-500 uppercase tracking-[0.15em] w-20 text-center">Status</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
@@ -436,15 +438,15 @@ export default function App() {
                               initial={{ opacity: 0, y: 10 }}
                               animate={{ opacity: 1, y: 0 }}
                               exit={{ opacity: 0, x: -20 }}
-                              className={`transition-all group ${
+                              className={`transition-all group border-l-4 ${
                                 expiration.status === 'expired' 
-                                  ? 'bg-rose-50/30 hover:bg-rose-50/60' 
+                                  ? 'bg-rose-50/30 hover:bg-rose-50/60 border-l-rose-500' 
                                   : expiration.status === 'warning'
-                                    ? 'bg-amber-50/30 hover:bg-amber-50/60'
-                                    : 'hover:bg-slate-50/80'
+                                    ? 'bg-amber-50/30 hover:bg-amber-50/60 border-l-amber-500'
+                                    : 'hover:bg-slate-50/80 border-l-transparent'
                               }`}
                             >
-                              <td className="p-0 border-r border-slate-200">
+                              <td className="p-0 border-r border-blue-50">
                                 <div className="flex items-center gap-3 px-6 py-4">
                                   {expiration.status !== 'normal' && (
                                     <div className={
@@ -468,7 +470,7 @@ export default function App() {
                                   />
                                 </div>
                               </td>
-                              <td className="p-0 border-r border-slate-200">
+                              <td className="p-0 border-r border-blue-50">
                                 <input 
                                   type="date" 
                                   value={row.obDate}
@@ -476,7 +478,7 @@ export default function App() {
                                   className="w-full px-6 py-4 bg-transparent focus:outline-none focus:bg-white focus:ring-4 focus:ring-inset focus:ring-blue-500/10 text-sm font-mono font-semibold text-slate-600"
                                 />
                               </td>
-                              <td className="p-0 border-r border-slate-200">
+                              <td className="p-0 border-r border-blue-50">
                                 <input 
                                   type="number" 
                                   value={row.obValidityDays}
@@ -485,7 +487,7 @@ export default function App() {
                                   placeholder="30"
                                 />
                               </td>
-                              <td className="p-0 border-r border-slate-200">
+                              <td className="p-0 border-r border-blue-50">
                                 <input 
                                   type="text" 
                                   value={row.value}
@@ -494,7 +496,7 @@ export default function App() {
                                   placeholder="0,00"
                                 />
                               </td>
-                              <td className="p-0 border-r border-slate-200">
+                              <td className="p-0 border-r border-blue-50">
                                 <input 
                                   type="date" 
                                   value={row.reDate}
@@ -502,7 +504,7 @@ export default function App() {
                                   className="w-full px-6 py-4 bg-transparent focus:outline-none focus:bg-white focus:ring-4 focus:ring-inset focus:ring-blue-500/10 text-sm font-mono font-semibold text-slate-600"
                                 />
                               </td>
-                              <td className="p-0 border-r border-slate-200">
+                              <td className="p-0 border-r border-blue-50">
                                 <input 
                                   type="date" 
                                   value={row.prestacaoDate}
@@ -510,7 +512,7 @@ export default function App() {
                                   className="w-full px-6 py-4 bg-transparent focus:outline-none focus:bg-white focus:ring-4 focus:ring-inset focus:ring-blue-500/10 text-sm font-mono font-semibold text-slate-600"
                                 />
                               </td>
-                              <td className="p-0 border-r border-slate-200">
+                              <td className="p-0 border-r border-blue-50">
                                 <input 
                                   type="date" 
                                   value={row.vencimentoDate}
@@ -518,7 +520,7 @@ export default function App() {
                                   className="w-full px-6 py-4 bg-transparent focus:outline-none focus:bg-white focus:ring-4 focus:ring-inset focus:ring-blue-500/10 text-sm font-mono font-semibold text-slate-600"
                                 />
                               </td>
-                              <td className="p-0 border-r border-slate-200">
+                              <td className="p-0 border-r border-blue-50">
                                 <div className="flex items-center px-4 py-1 gap-3">
                                   <button 
                                     onClick={() => toggleConfirm(row.id)}
@@ -557,16 +559,16 @@ export default function App() {
                   </table>
                 </div>
                 
-                <div className="p-6 bg-slate-50/50 border-t border-slate-200 flex flex-col sm:flex-row justify-between items-center gap-6">
+                <div className="p-6 bg-slate-50/50 border-t border-blue-100 flex flex-col sm:flex-row justify-between items-center gap-6">
                   <button 
                     onClick={addRow}
-                    className="w-full sm:w-auto flex items-center justify-center gap-3 px-8 py-3 bg-blue-600 text-white rounded-xl text-sm font-black uppercase tracking-wider hover:bg-blue-700 active:scale-95 transition-all shadow-lg shadow-blue-500/20"
+                    className="w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-blue-700 active:scale-95 transition-all shadow-lg shadow-blue-500/20"
                   >
-                    <Plus size={20} strokeWidth={3} />
-                    Adicionar Nova Linha
+                    <Plus size={16} strokeWidth={3} />
+                    Nova Linha
                   </button>
-                  <div className="flex items-center gap-3 px-4 py-2 bg-white border border-slate-200 rounded-xl shadow-sm">
-                    <div className="w-2 h-2 rounded-full bg-blue-500" />
+                  <div className="flex items-center gap-3 px-4 py-2 bg-white border border-blue-100 rounded-xl shadow-sm">
+                    <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
                     <p className="text-[10px] text-slate-500 font-black uppercase tracking-wider">
                       Armazenamento Local Ativo
                     </p>
