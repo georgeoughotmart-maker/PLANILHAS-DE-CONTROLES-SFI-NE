@@ -144,10 +144,38 @@ export default function App() {
     setRows(prev => [...prev, newRow]);
   };
 
+  const calculateVencimento = (obDate: string, validityDays: string) => {
+    if (!obDate || !validityDays) return '';
+    const date = new Date(obDate);
+    // Add 1 day to account for timezone offset if needed, but usually YYYY-MM-DD is UTC-ish in Date constructor
+    // Actually, Date constructor with YYYY-MM-DD treats it as UTC.
+    // Let's use a more robust way to avoid timezone shifts.
+    const [year, month, day] = obDate.split('-').map(Number);
+    const d = new Date(year, month - 1, day);
+    const days = parseInt(validityDays);
+    if (isNaN(days)) return '';
+    d.setDate(d.getDate() + days);
+    
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const dayStr = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${dayStr}`;
+  };
+
   const updateRow = (id: string, field: keyof RowData, value: any) => {
-    setRows(prev => prev.map(row => 
-      row.id === id ? { ...row, [field]: value } : row
-    ));
+    setRows(prev => prev.map(row => {
+      if (row.id === id) {
+        const updatedRow = { ...row, [field]: value };
+        
+        // Auto-calculate vencimentoDate if obDate or obValidityDays changes
+        if (field === 'obDate' || field === 'obValidityDays') {
+          updatedRow.vencimentoDate = calculateVencimento(updatedRow.obDate, updatedRow.obValidityDays);
+        }
+        
+        return updatedRow;
+      }
+      return row;
+    }));
   };
 
   const toggleConfirm = (id: string) => {
@@ -516,8 +544,9 @@ export default function App() {
                                 <input 
                                   type="date" 
                                   value={row.vencimentoDate}
-                                  onChange={(e) => updateRow(row.id, 'vencimentoDate', e.target.value)}
-                                  className="w-full px-6 py-4 bg-transparent focus:outline-none focus:bg-white focus:ring-4 focus:ring-inset focus:ring-blue-500/10 text-sm font-mono font-semibold text-slate-600"
+                                  readOnly
+                                  className="w-full px-6 py-4 bg-blue-50/30 focus:outline-none text-sm font-mono font-bold text-blue-700 cursor-default"
+                                  title="Calculado automaticamente"
                                 />
                               </td>
                               <td className="p-0 border-r border-blue-50">
