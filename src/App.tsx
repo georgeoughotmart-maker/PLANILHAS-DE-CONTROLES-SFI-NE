@@ -82,6 +82,7 @@ interface RowData {
   prestacaoDate: string;
   vencimentoDate: string;
   lancadoPlanilha: string;
+  externalLink: string;
   isConfirmed: boolean;
 }
 
@@ -95,6 +96,7 @@ const DEFAULT_ROW = (): RowData => ({
   prestacaoDate: '',
   vencimentoDate: '',
   lancadoPlanilha: '',
+  externalLink: '',
   isConfirmed: false,
 });
 
@@ -452,6 +454,7 @@ export default function App() {
                         <th className="px-6 py-4 text-[11px] font-black text-slate-500 uppercase tracking-[0.15em] border-r border-blue-50 w-36">Data RE</th>
                         <th className="px-6 py-4 text-[11px] font-black text-slate-500 uppercase tracking-[0.15em] border-r border-blue-50 w-36">Prestação</th>
                         <th className="px-6 py-4 text-[11px] font-black text-slate-500 uppercase tracking-[0.15em] border-r border-blue-50 w-36">Vencimento</th>
+                        <th className="px-6 py-4 text-[11px] font-black text-slate-500 uppercase tracking-[0.15em] border-r border-blue-50 w-44">Link Externo</th>
                         <th className="px-6 py-4 text-[11px] font-black text-slate-500 uppercase tracking-[0.15em] border-r border-blue-50">Observações Gerais</th>
                         <th className="px-6 py-4 text-[11px] font-black text-slate-500 uppercase tracking-[0.15em] w-20 text-center">Status</th>
                       </tr>
@@ -548,6 +551,28 @@ export default function App() {
                                   className="w-full px-6 py-4 bg-blue-50/30 focus:outline-none text-sm font-mono font-bold text-blue-700 cursor-default"
                                   title="Calculado automaticamente"
                                 />
+                              </td>
+                              <td className="p-0 border-r border-blue-50">
+                                <div className="flex items-center px-4 py-1 gap-2">
+                                  <input 
+                                    type="text" 
+                                    value={row.externalLink}
+                                    onChange={(e) => updateRow(row.id, 'externalLink', e.target.value)}
+                                    className="w-full py-3 bg-transparent focus:outline-none text-xs font-medium text-blue-600 placeholder:text-slate-300"
+                                    placeholder="https://..."
+                                  />
+                                  {row.externalLink && (
+                                    <a 
+                                      href={row.externalLink.startsWith('http') ? row.externalLink : `https://${row.externalLink}`} 
+                                      target="_blank" 
+                                      rel="noopener noreferrer"
+                                      className="p-2 text-blue-500 hover:bg-blue-50 rounded-lg transition-colors"
+                                      title="Abrir link"
+                                    >
+                                      <ExternalLink size={14} />
+                                    </a>
+                                  )}
+                                </div>
                               </td>
                               <td className="p-0 border-r border-blue-50">
                                 <div className="flex items-center px-4 py-1 gap-3">
