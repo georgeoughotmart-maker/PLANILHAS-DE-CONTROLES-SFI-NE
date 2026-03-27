@@ -7,7 +7,7 @@ import React, { Component, useState, useEffect, useCallback, useRef } from 'reac
 import { 
   Plus, Trash2, Save, Download, Upload, Search, FileSpreadsheet, 
   AlertCircle, Check, BarChart3, PieChart as PieChartIcon, 
-  LayoutDashboard, X, Share2, ExternalLink, Copy
+  LayoutDashboard, X, Share2, ExternalLink, Copy, Pencil
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
@@ -75,6 +75,7 @@ class ErrorBoundary extends Component<any, any> {
 interface RowData {
   id: string;
   neNumber: string;
+  type: 'Consumo' | 'Serviço' | 'Extra' | '';
   obDate: string;
   obValidityDays: string;
   value: string;
@@ -89,6 +90,7 @@ interface RowData {
 const DEFAULT_ROW = (): RowData => ({
   id: crypto.randomUUID(),
   neNumber: '',
+  type: '',
   obDate: '',
   obValidityDays: '30',
   value: '',
@@ -110,6 +112,7 @@ export default function App() {
   const [showDashboard, setShowDashboard] = useState(false);
   const [isDashboardOnly, setIsDashboardOnly] = useState(false);
   const [copySuccess, setCopySuccess] = useState(false);
+  const [editingRow, setEditingRow] = useState<RowData | null>(null);
 
   // Check if we are in "Dashboard Only" mode via URL
   useEffect(() => {
@@ -190,6 +193,18 @@ export default function App() {
   const deleteRow = (id: string) => {
     if (window.confirm('Tem certeza que deseja excluir esta linha?')) {
       setRows(prev => prev.filter(row => row.id !== id));
+    }
+  };
+
+  const duplicateRow = (id: string) => {
+    const rowToDuplicate = rows.find(r => r.id === id);
+    if (rowToDuplicate) {
+      const newRow = { 
+        ...rowToDuplicate, 
+        id: crypto.randomUUID(), 
+        isConfirmed: false 
+      };
+      setRows(prev => [...prev, newRow]);
     }
   };
 
@@ -448,15 +463,16 @@ export default function App() {
                     <thead>
                       <tr className="bg-slate-50/80 border-b border-blue-100">
                         <th className="px-6 py-4 text-[11px] font-black text-slate-500 uppercase tracking-[0.15em] border-r border-blue-50 w-44">Identificação NE</th>
+                        <th className="px-6 py-4 text-[11px] font-black text-slate-500 uppercase tracking-[0.15em] border-r border-blue-50 w-32">Tipo</th>
                         <th className="px-6 py-4 text-[11px] font-black text-slate-500 uppercase tracking-[0.15em] border-r border-blue-50 w-36">Data da OB</th>
                         <th className="px-6 py-4 text-[11px] font-black text-slate-500 uppercase tracking-[0.15em] border-r border-blue-50 w-28 text-center">Validade</th>
-                        <th className="px-6 py-4 text-[11px] font-black text-slate-500 uppercase tracking-[0.15em] border-r border-blue-50 w-36 text-right">Valor Bruto</th>
+                        <th className="px-6 py-4 text-[11px] font-black text-slate-500 uppercase tracking-[0.15em] border-r border-blue-50 w-48 text-right">Valor Bruto</th>
                         <th className="px-6 py-4 text-[11px] font-black text-slate-500 uppercase tracking-[0.15em] border-r border-blue-50 w-36">Data RE</th>
                         <th className="px-6 py-4 text-[11px] font-black text-slate-500 uppercase tracking-[0.15em] border-r border-blue-50 w-36">Prestação</th>
                         <th className="px-6 py-4 text-[11px] font-black text-slate-500 uppercase tracking-[0.15em] border-r border-blue-50 w-36">Vencimento</th>
                         <th className="px-6 py-4 text-[11px] font-black text-slate-500 uppercase tracking-[0.15em] border-r border-blue-50 w-44">Link Externo</th>
                         <th className="px-6 py-4 text-[11px] font-black text-slate-500 uppercase tracking-[0.15em] border-r border-blue-50">Observações Gerais</th>
-                        <th className="px-6 py-4 text-[11px] font-black text-slate-500 uppercase tracking-[0.15em] w-20 text-center">Status</th>
+                        <th className="px-6 py-4 text-[11px] font-black text-slate-500 uppercase tracking-[0.15em] w-32 text-center">Ações</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
@@ -502,6 +518,18 @@ export default function App() {
                                 </div>
                               </td>
                               <td className="p-0 border-r border-blue-50">
+                                <select 
+                                  value={row.type}
+                                  onChange={(e) => updateRow(row.id, 'type', e.target.value)}
+                                  className="w-full px-4 py-4 bg-transparent focus:outline-none focus:bg-white focus:ring-4 focus:ring-inset focus:ring-blue-500/10 text-xs font-bold text-slate-600 appearance-none cursor-pointer"
+                                >
+                                  <option value="">Selecione...</option>
+                                  <option value="Consumo">Consumo</option>
+                                  <option value="Serviço">Serviço</option>
+                                  <option value="Extra">Extra</option>
+                                </select>
+                              </td>
+                              <td className="p-0 border-r border-blue-50">
                                 <input 
                                   type="date" 
                                   value={row.obDate}
@@ -523,7 +551,7 @@ export default function App() {
                                   type="text" 
                                   value={row.value}
                                   onChange={(e) => updateRow(row.id, 'value', e.target.value)}
-                                  className="w-full px-6 py-4 bg-transparent focus:outline-none focus:bg-white focus:ring-4 focus:ring-inset focus:ring-blue-500/10 text-sm font-mono text-right font-bold text-blue-600"
+                                  className="w-full px-4 py-4 bg-transparent focus:outline-none focus:bg-white focus:ring-4 focus:ring-inset focus:ring-blue-500/10 text-sm font-mono text-right font-bold text-blue-600"
                                   placeholder="0,00"
                                 />
                               </td>
@@ -597,13 +625,29 @@ export default function App() {
                                 </div>
                               </td>
                               <td className="px-4 py-0 text-center">
-                                <button 
-                                  onClick={() => deleteRow(row.id)}
-                                  className="p-3 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-xl transition-all opacity-0 group-hover:opacity-100 active:scale-90"
-                                  title="Excluir linha"
-                                >
-                                  <Trash2 size={18} />
-                                </button>
+                                <div className="flex items-center justify-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                                  <button 
+                                    onClick={() => setEditingRow(row)}
+                                    className="p-2 text-slate-400 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition-all active:scale-90"
+                                    title="Editar linha"
+                                  >
+                                    <Pencil size={16} />
+                                  </button>
+                                  <button 
+                                    onClick={() => duplicateRow(row.id)}
+                                    className="p-2 text-slate-400 hover:text-emerald-500 hover:bg-emerald-50 rounded-lg transition-all active:scale-90"
+                                    title="Duplicar linha"
+                                  >
+                                    <Copy size={16} />
+                                  </button>
+                                  <button 
+                                    onClick={() => deleteRow(row.id)}
+                                    className="p-2 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-all active:scale-90"
+                                    title="Excluir linha"
+                                  >
+                                    <Trash2 size={16} />
+                                  </button>
+                                </div>
                               </td>
                             </motion.tr>
                           );
@@ -640,6 +684,161 @@ export default function App() {
             </div>
           )}
         </div>
+
+        {/* Edit Modal */}
+        <AnimatePresence>
+          {editingRow && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+              <motion.div 
+                initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl overflow-hidden border border-blue-100"
+              >
+                <div className="px-8 py-6 bg-slate-50 border-b border-blue-100 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-blue-600 rounded-xl text-white">
+                      <Pencil size={20} />
+                    </div>
+                    <div>
+                      <h2 className="text-xl font-black text-slate-900 tracking-tight">Editar Registro</h2>
+                      <p className="text-xs font-bold text-blue-600 uppercase tracking-widest">Nota de Empenho: {editingRow.neNumber || 'Sem identificação'}</p>
+                    </div>
+                  </div>
+                  <button 
+                    onClick={() => setEditingRow(null)}
+                    className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-200 rounded-xl transition-all"
+                  >
+                    <X size={24} />
+                  </button>
+                </div>
+
+                <div className="p-8 grid grid-cols-1 md:grid-cols-2 gap-6 max-h-[70vh] overflow-y-auto">
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Identificação NE</label>
+                    <input 
+                      type="text" 
+                      value={editingRow.neNumber}
+                      onChange={(e) => setEditingRow({...editingRow, neNumber: e.target.value})}
+                      className="w-full px-4 py-3 bg-slate-50 border border-blue-100 rounded-xl text-sm font-mono font-bold focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Tipo</label>
+                    <select 
+                      value={editingRow.type}
+                      onChange={(e) => setEditingRow({...editingRow, type: e.target.value as any})}
+                      className="w-full px-4 py-3 bg-slate-50 border border-blue-100 rounded-xl text-sm font-bold focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all"
+                    >
+                      <option value="">Selecione...</option>
+                      <option value="Consumo">Consumo</option>
+                      <option value="Serviço">Serviço</option>
+                      <option value="Extra">Extra</option>
+                    </select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Data da OB</label>
+                    <input 
+                      type="date" 
+                      value={editingRow.obDate}
+                      onChange={(e) => {
+                        const newDate = e.target.value;
+                        const newVencimento = calculateVencimento(newDate, editingRow.obValidityDays);
+                        setEditingRow({...editingRow, obDate: newDate, vencimentoDate: newVencimento});
+                      }}
+                      className="w-full px-4 py-3 bg-slate-50 border border-blue-100 rounded-xl text-sm font-mono font-bold focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Validade (Dias)</label>
+                    <input 
+                      type="number" 
+                      value={editingRow.obValidityDays}
+                      onChange={(e) => {
+                        const newDays = e.target.value;
+                        const newVencimento = calculateVencimento(editingRow.obDate, newDays);
+                        setEditingRow({...editingRow, obValidityDays: newDays, vencimentoDate: newVencimento});
+                      }}
+                      className="w-full px-4 py-3 bg-slate-50 border border-blue-100 rounded-xl text-sm font-mono font-bold focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Valor Bruto</label>
+                    <input 
+                      type="text" 
+                      value={editingRow.value}
+                      onChange={(e) => setEditingRow({...editingRow, value: e.target.value})}
+                      className="w-full px-4 py-3 bg-slate-50 border border-blue-100 rounded-xl text-sm font-mono font-bold text-blue-600 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Data RE</label>
+                    <input 
+                      type="date" 
+                      value={editingRow.reDate}
+                      onChange={(e) => setEditingRow({...editingRow, reDate: e.target.value})}
+                      className="w-full px-4 py-3 bg-slate-50 border border-blue-100 rounded-xl text-sm font-mono font-bold focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Prestação</label>
+                    <input 
+                      type="date" 
+                      value={editingRow.prestacaoDate}
+                      onChange={(e) => setEditingRow({...editingRow, prestacaoDate: e.target.value})}
+                      className="w-full px-4 py-3 bg-slate-50 border border-blue-100 rounded-xl text-sm font-mono font-bold focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Link Externo</label>
+                    <input 
+                      type="text" 
+                      value={editingRow.externalLink}
+                      onChange={(e) => setEditingRow({...editingRow, externalLink: e.target.value})}
+                      className="w-full px-4 py-3 bg-slate-50 border border-blue-100 rounded-xl text-sm font-medium text-blue-600 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all"
+                      placeholder="https://..."
+                    />
+                  </div>
+
+                  <div className="md:col-span-2 space-y-2">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Observações Gerais</label>
+                    <textarea 
+                      value={editingRow.lancadoPlanilha}
+                      onChange={(e) => setEditingRow({...editingRow, lancadoPlanilha: e.target.value})}
+                      rows={3}
+                      className="w-full px-4 py-3 bg-slate-50 border border-blue-100 rounded-xl text-sm font-medium focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all resize-none"
+                    />
+                  </div>
+                </div>
+
+                <div className="px-8 py-6 bg-slate-50 border-t border-blue-100 flex items-center justify-end gap-3">
+                  <button 
+                    onClick={() => setEditingRow(null)}
+                    className="px-6 py-2.5 rounded-xl text-sm font-black uppercase tracking-widest text-slate-500 hover:bg-slate-200 transition-all"
+                  >
+                    Cancelar
+                  </button>
+                  <button 
+                    onClick={() => {
+                      setRows(prev => prev.map(r => r.id === editingRow.id ? editingRow : r));
+                      setEditingRow(null);
+                    }}
+                    className="px-8 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-black uppercase tracking-widest shadow-lg shadow-blue-200 hover:bg-blue-700 active:scale-95 transition-all"
+                  >
+                    Salvar Alterações
+                  </button>
+                </div>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
       </div>
     </ErrorBoundary>
   );
