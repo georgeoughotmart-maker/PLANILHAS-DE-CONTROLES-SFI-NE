@@ -278,7 +278,7 @@ export default function App() {
   return (
     <ErrorBoundary>
       <div className="min-h-screen bg-[#F8FAFC] font-sans text-slate-900 selection:bg-blue-100 selection:text-blue-900">
-        <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 py-10">
+        <div className="max-w-[1850px] mx-auto px-4 sm:px-6 lg:px-8 py-10">
 
           
           {/* Header Section */}
@@ -462,17 +462,17 @@ export default function App() {
                   <table className="w-full border-collapse text-left">
                     <thead>
                       <tr className="bg-slate-50/80 border-b border-blue-100">
-                        <th className="px-6 py-4 text-[11px] font-black text-slate-500 uppercase tracking-[0.15em] border-r border-blue-50 w-44">Identificação NE</th>
-                        <th className="px-6 py-4 text-[11px] font-black text-slate-500 uppercase tracking-[0.15em] border-r border-blue-50 w-32">Tipo</th>
-                        <th className="px-6 py-4 text-[11px] font-black text-slate-500 uppercase tracking-[0.15em] border-r border-blue-50 w-36">Data da OB</th>
-                        <th className="px-6 py-4 text-[11px] font-black text-slate-500 uppercase tracking-[0.15em] border-r border-blue-50 w-28 text-center">Validade</th>
-                        <th className="px-6 py-4 text-[11px] font-black text-slate-500 uppercase tracking-[0.15em] border-r border-blue-50 w-48 text-right">Valor Bruto</th>
-                        <th className="px-6 py-4 text-[11px] font-black text-slate-500 uppercase tracking-[0.15em] border-r border-blue-50 w-36">Data RE</th>
-                        <th className="px-6 py-4 text-[11px] font-black text-slate-500 uppercase tracking-[0.15em] border-r border-blue-50 w-36">Prestação</th>
-                        <th className="px-6 py-4 text-[11px] font-black text-slate-500 uppercase tracking-[0.15em] border-r border-blue-50 w-36">Vencimento</th>
-                        <th className="px-6 py-4 text-[11px] font-black text-slate-500 uppercase tracking-[0.15em] border-r border-blue-50 w-44">Link Externo</th>
-                        <th className="px-6 py-4 text-[11px] font-black text-slate-500 uppercase tracking-[0.15em] border-r border-blue-50">Observações Gerais</th>
-                        <th className="px-6 py-4 text-[11px] font-black text-slate-500 uppercase tracking-[0.15em] w-32 text-center">Ações</th>
+                        <th className="px-4 py-3 text-[11px] font-black text-slate-500 uppercase tracking-[0.15em] border-r border-blue-50 w-44">Identificação NE</th>
+                        <th className="px-4 py-3 text-[11px] font-black text-slate-500 uppercase tracking-[0.15em] border-r border-blue-50 w-32">Tipo</th>
+                        <th className="px-4 py-3 text-[11px] font-black text-slate-500 uppercase tracking-[0.15em] border-r border-blue-50 w-36">Data da OB</th>
+                        <th className="px-4 py-3 text-[11px] font-black text-slate-500 uppercase tracking-[0.15em] border-r border-blue-50 w-28 text-center">Validade</th>
+                        <th className="px-4 py-3 text-[11px] font-black text-slate-500 uppercase tracking-[0.15em] border-r border-blue-50 w-48 text-right">Valor Bruto</th>
+                        <th className="px-4 py-3 text-[11px] font-black text-slate-500 uppercase tracking-[0.15em] border-r border-blue-50 w-36">Data RE</th>
+                        <th className="px-4 py-3 text-[11px] font-black text-slate-500 uppercase tracking-[0.15em] border-r border-blue-50 w-36">Prestação</th>
+                        <th className="px-4 py-3 text-[11px] font-black text-slate-500 uppercase tracking-[0.15em] border-r border-blue-50 w-36">Vencimento</th>
+                        <th className="px-4 py-3 text-[11px] font-black text-slate-500 uppercase tracking-[0.15em] border-r border-blue-50 w-44">Link Externo</th>
+                        <th className="px-4 py-3 text-[11px] font-black text-slate-500 uppercase tracking-[0.15em] border-r border-blue-50">Observações Gerais</th>
+                        <th className="px-4 py-3 text-[11px] font-black text-slate-500 uppercase tracking-[0.15em] w-32 text-center">Ações</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
@@ -521,7 +521,7 @@ export default function App() {
                                 <select 
                                   value={row.type}
                                   onChange={(e) => updateRow(row.id, 'type', e.target.value)}
-                                  className="w-full px-4 py-4 bg-transparent focus:outline-none focus:bg-white focus:ring-4 focus:ring-inset focus:ring-blue-500/10 text-xs font-bold text-slate-600 appearance-none cursor-pointer"
+                                  className="w-full px-3 py-3 bg-transparent focus:outline-none focus:bg-white focus:ring-4 focus:ring-inset focus:ring-blue-500/10 text-xs font-bold text-slate-600 appearance-none cursor-pointer"
                                 >
                                   <option value="">Selecione...</option>
                                   <option value="Consumo">Consumo</option>
@@ -534,7 +534,7 @@ export default function App() {
                                   type="date" 
                                   value={row.obDate}
                                   onChange={(e) => updateRow(row.id, 'obDate', e.target.value)}
-                                  className="w-full px-6 py-4 bg-transparent focus:outline-none focus:bg-white focus:ring-4 focus:ring-inset focus:ring-blue-500/10 text-sm font-mono font-semibold text-slate-600"
+                                  className="w-full px-3 py-3 bg-transparent focus:outline-none focus:bg-white focus:ring-4 focus:ring-inset focus:ring-blue-500/10 text-sm font-mono font-semibold text-slate-600"
                                 />
                               </td>
                               <td className="p-0 border-r border-blue-50">
@@ -542,7 +542,7 @@ export default function App() {
                                   type="number" 
                                   value={row.obValidityDays}
                                   onChange={(e) => updateRow(row.id, 'obValidityDays', e.target.value)}
-                                  className="w-full px-6 py-4 bg-transparent focus:outline-none focus:bg-white focus:ring-4 focus:ring-inset focus:ring-blue-500/10 text-sm text-center font-mono font-bold text-slate-500"
+                                  className="w-full px-3 py-3 bg-transparent focus:outline-none focus:bg-white focus:ring-4 focus:ring-inset focus:ring-blue-500/10 text-sm text-center font-mono font-bold text-slate-500"
                                   placeholder="30"
                                 />
                               </td>
@@ -551,7 +551,7 @@ export default function App() {
                                   type="text" 
                                   value={row.value}
                                   onChange={(e) => updateRow(row.id, 'value', e.target.value)}
-                                  className="w-full px-4 py-4 bg-transparent focus:outline-none focus:bg-white focus:ring-4 focus:ring-inset focus:ring-blue-500/10 text-sm font-mono text-right font-bold text-blue-600"
+                                  className="w-full px-3 py-3 bg-transparent focus:outline-none focus:bg-white focus:ring-4 focus:ring-inset focus:ring-blue-500/10 text-sm font-mono text-right font-bold text-blue-600"
                                   placeholder="0,00"
                                 />
                               </td>
@@ -560,7 +560,7 @@ export default function App() {
                                   type="date" 
                                   value={row.reDate}
                                   onChange={(e) => updateRow(row.id, 'reDate', e.target.value)}
-                                  className="w-full px-6 py-4 bg-transparent focus:outline-none focus:bg-white focus:ring-4 focus:ring-inset focus:ring-blue-500/10 text-sm font-mono font-semibold text-slate-600"
+                                  className="w-full px-3 py-3 bg-transparent focus:outline-none focus:bg-white focus:ring-4 focus:ring-inset focus:ring-blue-500/10 text-sm font-mono font-semibold text-slate-600"
                                 />
                               </td>
                               <td className="p-0 border-r border-blue-50">
@@ -568,7 +568,7 @@ export default function App() {
                                   type="date" 
                                   value={row.prestacaoDate}
                                   onChange={(e) => updateRow(row.id, 'prestacaoDate', e.target.value)}
-                                  className="w-full px-6 py-4 bg-transparent focus:outline-none focus:bg-white focus:ring-4 focus:ring-inset focus:ring-blue-500/10 text-sm font-mono font-semibold text-slate-600"
+                                  className="w-full px-3 py-3 bg-transparent focus:outline-none focus:bg-white focus:ring-4 focus:ring-inset focus:ring-blue-500/10 text-sm font-mono font-semibold text-slate-600"
                                 />
                               </td>
                               <td className="p-0 border-r border-blue-50">
@@ -576,7 +576,7 @@ export default function App() {
                                   type="date" 
                                   value={row.vencimentoDate}
                                   readOnly
-                                  className="w-full px-6 py-4 bg-blue-50/30 focus:outline-none text-sm font-mono font-bold text-blue-700 cursor-default"
+                                  className="w-full px-3 py-3 bg-blue-50/30 focus:outline-none text-sm font-mono font-bold text-blue-700 cursor-default"
                                   title="Calculado automaticamente"
                                 />
                               </td>
