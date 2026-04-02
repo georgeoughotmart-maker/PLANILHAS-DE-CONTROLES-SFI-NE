@@ -1,0 +1,32 @@
+{
+  "entities": {
+    "Row": {
+      "title": "Spreadsheet Row",
+      "description": "A single row in the SFI 2026 spreadsheet",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique identifier for the row" },
+        "neNumber": { "type": "string", "description": "NE Identification number" },
+        "type": { "type": "string", "enum": ["Consumo", "Serviço", "Extra", ""], "description": "Type of expense" },
+        "obDate": { "type": "string", "format": "date", "description": "OB Date" },
+        "obValidityDays": { "type": "string", "description": "Validity in days" },
+        "value": { "type": "string", "description": "Gross value" },
+        "reDate": { "type": "string", "format": "date", "description": "RE Date" },
+        "prestacaoDate": { "type": "string", "format": "date", "description": "Prestação Date" },
+        "vencimentoDate": { "type": "string", "format": "date", "description": "Expiration Date" },
+        "lancadoPlanilha": { "type": "string", "description": "General observations" },
+        "externalLink": { "type": "string", "format": "uri", "description": "External link" },
+        "isConfirmed": { "type": "boolean", "description": "Whether the row is confirmed/launched" },
+        "uid": { "type": "string", "description": "Owner UID" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Last update timestamp" }
+      },
+      "required": ["id", "uid"]
+    }
+  },
+  "firestore": {
+    "/rows/{rowId}": {
+      "schema": "Row",
+      "description": "Collection of spreadsheet rows"
+    }
+  }
+}

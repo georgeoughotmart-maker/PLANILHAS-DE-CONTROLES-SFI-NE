@@ -7,7 +7,7 @@ import React, { Component, useState, useEffect, useCallback, useRef } from 'reac
 import { 
   Plus, Trash2, Save, Download, Upload, Search, FileSpreadsheet, 
   AlertCircle, Check, BarChart3, PieChart as PieChartIcon, 
-  LayoutDashboard, X, Share2, ExternalLink, Copy, Pencil
+  LayoutDashboard, X, Share2, ExternalLink, Copy, Pencil, LogIn, LogOut, User as UserIcon
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
@@ -23,6 +23,61 @@ import {
   Cell,
   Legend
 } from 'recharts';
+import { 
+  db, auth, googleProvider, signInWithPopup, signOut, onAuthStateChanged, 
+  collection, doc, setDoc, updateDoc, deleteDoc, onSnapshot, query, where, User
+} from './firebase';
+
+enum OperationType {
+  CREATE = 'create',
+  UPDATE = 'update',
+  DELETE = 'delete',
+  LIST = 'list',
+  GET = 'get',
+  WRITE = 'write',
+}
+
+interface FirestoreErrorInfo {
+  error: string;
+  operationType: OperationType;
+  path: string | null;
+  authInfo: {
+    userId: string | undefined;
+    email: string | null | undefined;
+    emailVerified: boolean | undefined;
+    isAnonymous: boolean | undefined;
+    tenantId: string | null | undefined;
+    providerInfo: {
+      providerId: string;
+      displayName: string | null;
+      email: string | null;
+      photoUrl: string | null;
+    }[];
+  }
+}
+
+function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
+  const errInfo: FirestoreErrorInfo = {
+    error: error instanceof Error ? error.message : String(error),
+    authInfo: {
+      userId: auth.currentUser?.uid,
+      email: auth.currentUser?.email,
+      emailVerified: auth.currentUser?.emailVerified,
+      isAnonymous: auth.currentUser?.isAnonymous,
+      tenantId: auth.currentUser?.tenantId,
+      providerInfo: auth.currentUser?.providerData.map(provider => ({
+        providerId: provider.providerId,
+        displayName: provider.displayName,
+        email: provider.email,
+        photoUrl: provider.photoURL
+      })) || []
+    },
+    operationType,
+    path
+  }
+  console.error('Firestore Error: ', JSON.stringify(errInfo));
+  throw new Error(JSON.stringify(errInfo));
+}
 
 // Error Boundary Component
 class ErrorBoundary extends Component<any, any> {
@@ -41,6 +96,22 @@ class ErrorBoundary extends Component<any, any> {
 
   render() {
     if ((this as any).state.hasError) {
+      let errorMessage = "Ocorreu um erro inesperado. Por favor, tente recarregar a página.";
+      let isFirebaseError = false;
+
+      try {
+        const errorStr = String((this as any).state.error);
+        if (errorStr.includes('operationType')) {
+          const errData = JSON.parse(errorStr.replace('Error: ', ''));
+          if (errData.error.includes('permission-denied')) {
+            errorMessage = "Você não tem permissão para realizar esta operação ou acessar estes dados.";
+            isFirebaseError = true;
+          }
+        }
+      } catch (e) {
+        // Fallback to default message
+      }
+
       return (
         <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
           <div className="bg-white p-8 rounded-2xl shadow-xl border border-red-100 max-w-md w-full text-center">
@@ -49,7 +120,7 @@ class ErrorBoundary extends Component<any, any> {
             </div>
             <h2 className="text-xl font-bold text-slate-900 mb-2">Ops! Algo deu errado.</h2>
             <p className="text-slate-600 mb-6 text-sm">
-              Ocorreu um erro inesperado. Por favor, tente recarregar a página.
+              {errorMessage}
             </p>
             <button 
               onClick={() => window.location.reload()}
@@ -74,6 +145,7 @@ class ErrorBoundary extends Component<any, any> {
 
 interface RowData {
   id: string;
+  uid: string;
   neNumber: string;
   type: 'Consumo' | 'Serviço' | 'Extra' | '';
   obDate: string;
@@ -87,7 +159,7 @@ interface RowData {
   isConfirmed: boolean;
 }
 
-const DEFAULT_ROW = (): RowData => ({
+const DEFAULT_ROW = (): Omit<RowData, 'uid'> => ({
   id: crypto.randomUUID(),
   neNumber: '',
   type: '',
@@ -102,9 +174,6 @@ const DEFAULT_ROW = (): RowData => ({
   isConfirmed: false,
 });
 
-// Local Storage Key
-const STORAGE_KEY = 'sfi_2026_data';
-
 export default function App() {
   const [rows, setRows] = useState<RowData[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -113,6 +182,17 @@ export default function App() {
   const [isDashboardOnly, setIsDashboardOnly] = useState(false);
   const [copySuccess, setCopySuccess] = useState(false);
   const [editingRow, setEditingRow] = useState<RowData | null>(null);
+  const [user, setUser] = useState<User | null>(null);
+  const [isAuthReady, setIsAuthReady] = useState(false);
+
+  // Auth listener
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+      setIsAuthReady(true);
+    });
+    return () => unsubscribe();
+  }, []);
 
   // Check if we are in "Dashboard Only" mode via URL
   useEffect(() => {
@@ -123,30 +203,40 @@ export default function App() {
     }
   }, []);
 
-  // Load data from localStorage
+  // Firestore listener
   useEffect(() => {
-    const savedData = localStorage.getItem(STORAGE_KEY);
-    if (savedData) {
-      try {
-        setRows(JSON.parse(savedData));
-      } catch (e) {
-        console.error("Failed to parse saved data", e);
+    if (!isAuthReady || !user) {
+      if (isAuthReady && !user) {
         setRows([]);
+        setIsLoaded(true);
       }
+      return;
     }
-    setIsLoaded(true);
-  }, []);
 
-  // Save data to localStorage whenever rows change
-  useEffect(() => {
-    if (isLoaded) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(rows));
+    const q = query(
+      collection(db, 'rows'),
+      where('uid', '==', user.uid)
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const fetchedRows = snapshot.docs.map(doc => doc.data() as RowData);
+      setRows(fetchedRows);
+      setIsLoaded(true);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, 'rows');
+    });
+
+    return () => unsubscribe();
+  }, [isAuthReady, user]);
+
+  const addRow = async () => {
+    if (!user) return;
+    const newRow = { ...DEFAULT_ROW(), uid: user.uid };
+    try {
+      await setDoc(doc(db, 'rows', newRow.id), newRow);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, `rows/${newRow.id}`);
     }
-  }, [rows, isLoaded]);
-
-  const addRow = () => {
-    const newRow = DEFAULT_ROW();
-    setRows(prev => [...prev, newRow]);
   };
 
   const calculateVencimento = (obDate: string, validityDays: string) => {
@@ -167,20 +257,23 @@ export default function App() {
     return `${y}-${m}-${dayStr}`;
   };
 
-  const updateRow = (id: string, field: keyof RowData, value: any) => {
-    setRows(prev => prev.map(row => {
-      if (row.id === id) {
-        const updatedRow = { ...row, [field]: value };
-        
-        // Auto-calculate vencimentoDate if obDate or obValidityDays changes
-        if (field === 'obDate' || field === 'obValidityDays') {
-          updatedRow.vencimentoDate = calculateVencimento(updatedRow.obDate, updatedRow.obValidityDays);
-        }
-        
-        return updatedRow;
-      }
-      return row;
-    }));
+  const updateRow = async (id: string, field: keyof RowData, value: any) => {
+    if (!user) return;
+    const row = rows.find(r => r.id === id);
+    if (!row) return;
+
+    const updatedData: any = { [field]: value };
+    if (field === 'obDate' || field === 'obValidityDays') {
+      const obDate = field === 'obDate' ? value : row.obDate;
+      const obValidityDays = field === 'obValidityDays' ? value : row.obValidityDays;
+      updatedData.vencimentoDate = calculateVencimento(obDate, obValidityDays);
+    }
+
+    try {
+      await updateDoc(doc(db, 'rows', id), updatedData);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `rows/${id}`);
+    }
   };
 
   const toggleConfirm = (id: string) => {
@@ -190,21 +283,32 @@ export default function App() {
     }
   };
 
-  const deleteRow = (id: string) => {
+  const deleteRow = async (id: string) => {
+    if (!user) return;
     if (window.confirm('Tem certeza que deseja excluir esta linha?')) {
-      setRows(prev => prev.filter(row => row.id !== id));
+      try {
+        await deleteDoc(doc(db, 'rows', id));
+      } catch (error) {
+        handleFirestoreError(error, OperationType.DELETE, `rows/${id}`);
+      }
     }
   };
 
-  const duplicateRow = (id: string) => {
+  const duplicateRow = async (id: string) => {
+    if (!user) return;
     const rowToDuplicate = rows.find(r => r.id === id);
     if (rowToDuplicate) {
       const newRow = { 
         ...rowToDuplicate, 
         id: crypto.randomUUID(), 
-        isConfirmed: false 
+        isConfirmed: false,
+        uid: user.uid
       };
-      setRows(prev => [...prev, newRow]);
+      try {
+        await setDoc(doc(db, 'rows', newRow.id), newRow);
+      } catch (error) {
+        handleFirestoreError(error, OperationType.CREATE, `rows/${newRow.id}`);
+      }
     }
   };
 
@@ -267,10 +371,36 @@ export default function App() {
     setTimeout(() => setCopySuccess(false), 2000);
   };
 
-  if (!isLoaded) {
+  if (!isLoaded || !isAuthReady) {
     return (
       <div className="min-h-screen bg-[#F8FAFC] flex items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
+
+  if (!user && !isDashboardOnly) {
+    return (
+      <div className="min-h-screen bg-[#F8FAFC] flex items-center justify-center p-4">
+        <div className="bg-white p-10 rounded-[2.5rem] shadow-2xl border border-blue-100 max-w-md w-full text-center">
+          <div className="p-4 bg-blue-600 rounded-3xl shadow-xl shadow-blue-200 w-20 h-20 flex items-center justify-center mx-auto mb-8">
+            <FileSpreadsheet className="text-white" size={40} />
+          </div>
+          <h1 className="text-3xl font-black tracking-tight text-slate-900 mb-2">Controle SFI 2026</h1>
+          <p className="text-slate-500 mb-10 font-medium">Faça login para acessar e sincronizar sua planilha em qualquer dispositivo.</p>
+          
+          <button 
+            onClick={() => signInWithPopup(auth, googleProvider)}
+            className="w-full py-4 bg-white border-2 border-slate-100 rounded-2xl font-black text-slate-700 hover:border-blue-500 hover:bg-blue-50 transition-all flex items-center justify-center gap-3 shadow-sm active:scale-[0.98]"
+          >
+            <img src="https://www.google.com/favicon.ico" className="w-5 h-5" alt="Google" />
+            Entrar com Google
+          </button>
+          
+          <div className="mt-10 pt-8 border-t border-slate-100">
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Desenvolvido para Gestão de OBs</p>
+          </div>
+        </div>
       </div>
     );
   }
@@ -297,6 +427,29 @@ export default function App() {
 
             {!isDashboardOnly && (
               <div className="flex flex-wrap items-center gap-3">
+                {user && (
+                  <div className="flex items-center gap-3 mr-4 bg-white px-4 py-1.5 rounded-2xl border border-blue-50 shadow-sm">
+                    <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center overflow-hidden border border-blue-200">
+                      {user.photoURL ? (
+                        <img src={user.photoURL} alt={user.displayName || ''} referrerPolicy="no-referrer" />
+                      ) : (
+                        <UserIcon size={16} className="text-blue-600" />
+                      )}
+                    </div>
+                    <div className="hidden sm:block">
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider leading-none mb-0.5">Usuário</p>
+                      <p className="text-xs font-bold text-slate-700 leading-none">{user.displayName || user.email}</p>
+                    </div>
+                    <button 
+                      onClick={() => signOut(auth)}
+                      className="ml-2 p-1.5 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-all"
+                      title="Sair"
+                    >
+                      <LogOut size={16} />
+                    </button>
+                  </div>
+                )}
+
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
                   <input 
@@ -826,9 +979,14 @@ export default function App() {
                     Cancelar
                   </button>
                   <button 
-                    onClick={() => {
-                      setRows(prev => prev.map(r => r.id === editingRow.id ? editingRow : r));
-                      setEditingRow(null);
+                    onClick={async () => {
+                      if (!user) return;
+                      try {
+                        await setDoc(doc(db, 'rows', editingRow.id), editingRow);
+                        setEditingRow(null);
+                      } catch (error) {
+                        handleFirestoreError(error, OperationType.UPDATE, `rows/${editingRow.id}`);
+                      }
                     }}
                     className="px-8 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-black uppercase tracking-widest shadow-lg shadow-blue-200 hover:bg-blue-700 active:scale-95 transition-all"
                   >
