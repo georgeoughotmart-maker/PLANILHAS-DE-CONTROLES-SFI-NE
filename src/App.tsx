@@ -25,7 +25,7 @@ import {
 } from 'recharts';
 import { 
   db, auth, googleProvider, signInWithPopup, signOut, onAuthStateChanged, 
-  collection, doc, setDoc, updateDoc, deleteDoc, onSnapshot, query, where, User
+  collection, doc, setDoc, updateDoc, deleteDoc, onSnapshot, query, where, User, signInAnonymously
 } from './firebase';
 
 enum OperationType {
@@ -157,10 +157,12 @@ interface RowData {
   lancadoPlanilha: string;
   externalLink: string;
   isConfirmed: boolean;
+  isPublic?: boolean;
 }
 
-const DEFAULT_ROW = (): Omit<RowData, 'uid'> => ({
+const DEFAULT_ROW = (uid: string): RowData => ({
   id: crypto.randomUUID(),
+  uid,
   neNumber: '',
   type: '',
   obDate: '',
@@ -172,6 +174,7 @@ const DEFAULT_ROW = (): Omit<RowData, 'uid'> => ({
   lancadoPlanilha: '',
   externalLink: '',
   isConfirmed: false,
+  isPublic: false,
 });
 
 export default function App() {
@@ -185,41 +188,60 @@ export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [isAuthReady, setIsAuthReady] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
+  const [isPublicView, setIsPublicView] = useState(false);
+  const [publicUserUid, setPublicUserUid] = useState<string | null>(null);
 
   // Auth listener
   useEffect(() => {
     console.log("Setting up auth listener...");
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      console.log("Auth state changed:", currentUser ? `User logged in: ${currentUser.email}` : "No user logged in");
+      console.log("Auth state changed:", currentUser ? `User logged in: ${currentUser.uid} (Anonymous: ${currentUser.isAnonymous})` : "No user logged in");
       setUser(currentUser);
       setIsAuthReady(true);
     });
     return () => unsubscribe();
   }, []);
 
-  // Check if we are in "Dashboard Only" mode via URL
+  // Check if we are in "Public View" or "Dashboard Only" mode via URL
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    if (params.get('view') === 'dashboard') {
+    const view = params.get('view');
+    const userUid = params.get('user');
+    
+    if (view === 'dashboard') {
       setIsDashboardOnly(true);
       setShowDashboard(true);
+    }
+    
+    if (view === 'public' && userUid) {
+      setIsPublicView(true);
+      setPublicUserUid(userUid);
     }
   }, []);
 
   // Firestore listener
   useEffect(() => {
-    if (!isAuthReady || !user) {
-      if (isAuthReady && !user) {
-        setRows([]);
-        setIsLoaded(true);
-      }
+    if (!isAuthReady) return;
+
+    let q;
+    if (isPublicView && publicUserUid) {
+      // Public view: fetch rows for specific user that are marked as public
+      q = query(
+        collection(db, 'rows'),
+        where('uid', '==', publicUserUid),
+        where('isPublic', '==', true)
+      );
+    } else if (user) {
+      // Private view: fetch rows for logged-in user
+      q = query(
+        collection(db, 'rows'),
+        where('uid', '==', user.uid)
+      );
+    } else {
+      setRows([]);
+      setIsLoaded(true);
       return;
     }
-
-    const q = query(
-      collection(db, 'rows'),
-      where('uid', '==', user.uid)
-    );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const fetchedRows = snapshot.docs.map(doc => doc.data() as RowData);
@@ -230,11 +252,11 @@ export default function App() {
     });
 
     return () => unsubscribe();
-  }, [isAuthReady, user]);
+  }, [isAuthReady, user, isPublicView, publicUserUid]);
 
   const addRow = async () => {
     if (!user) return;
-    const newRow = { ...DEFAULT_ROW(), uid: user.uid };
+    const newRow = DEFAULT_ROW(user.uid);
     try {
       await setDoc(doc(db, 'rows', newRow.id), newRow);
     } catch (error) {
@@ -396,6 +418,43 @@ export default function App() {
     }
   };
 
+  const handleGuestLogin = async () => {
+    setLoginError(null);
+    try {
+      console.log("Attempting anonymous login...");
+      await signInAnonymously(auth);
+      console.log("Anonymous login successful");
+    } catch (error: any) {
+      console.error("Guest login error:", error);
+      setLoginError("Erro ao entrar como convidado. Por favor, tente novamente.");
+    }
+  };
+
+  const togglePublicSpreadsheet = async () => {
+    if (!user) return;
+    const newPublicStatus = !rows.every(r => r.isPublic);
+    
+    try {
+      // Update all rows to the new public status
+      const promises = rows.map(row => 
+        updateDoc(doc(db, 'rows', row.id), { isPublic: newPublicStatus })
+      );
+      await Promise.all(promises);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, 'rows/multiple');
+    }
+  };
+
+  const sharePublicLink = () => {
+    if (!user) return;
+    const url = new URL(window.location.origin + window.location.pathname);
+    url.searchParams.set('view', 'public');
+    url.searchParams.set('user', user.uid);
+    navigator.clipboard.writeText(url.toString());
+    setCopySuccess(true);
+    setTimeout(() => setCopySuccess(false), 2000);
+  };
+
   if (!isLoaded || !isAuthReady) {
     return (
       <div className="min-h-screen bg-[#F8FAFC] flex items-center justify-center">
@@ -431,6 +490,14 @@ export default function App() {
             <img src="https://www.google.com/favicon.ico" className="w-5 h-5" alt="Google" />
             Entrar com Google
           </button>
+
+          <button 
+            onClick={handleGuestLogin}
+            className="w-full mt-4 py-4 bg-slate-100 rounded-2xl font-black text-slate-600 hover:bg-slate-200 transition-all flex items-center justify-center gap-3 active:scale-[0.98]"
+          >
+            <UserIcon size={20} />
+            Entrar como Convidado
+          </button>
           
           <div className="mt-10 pt-8 border-t border-slate-100">
             <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Desenvolvido para Gestão de OBs</p>
@@ -460,7 +527,7 @@ export default function App() {
               </div>
             </div>
 
-            {!isDashboardOnly && (
+            {!isDashboardOnly && !isPublicView && (
               <div className="flex flex-wrap items-center gap-3">
                 {user && (
                   <div className="flex items-center gap-3 mr-4 bg-white px-4 py-1.5 rounded-2xl border border-blue-50 shadow-sm">
@@ -472,8 +539,10 @@ export default function App() {
                       )}
                     </div>
                     <div className="hidden sm:block">
-                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider leading-none mb-0.5">Usuário</p>
-                      <p className="text-xs font-bold text-slate-700 leading-none">{user.displayName || user.email}</p>
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider leading-none mb-0.5">
+                        {user.isAnonymous ? 'Convidado' : 'Usuário'}
+                      </p>
+                      <p className="text-xs font-bold text-slate-700 leading-none">{user.displayName || user.email || 'Anônimo'}</p>
                     </div>
                     <button 
                       onClick={() => signOut(auth)}
@@ -508,24 +577,47 @@ export default function App() {
                   Dashboard
                 </button>
 
-                <button 
-                  onClick={shareDashboard}
-                  className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-xl text-sm font-black uppercase tracking-wider hover:bg-slate-50 transition-all text-slate-700 shadow-sm"
-                >
-                  {copySuccess ? <Check size={16} className="text-emerald-500" /> : <Share2 size={16} />}
-                  {copySuccess ? 'Copiado' : 'Compartilhar'}
-                </button>
+                <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-xl p-1 shadow-sm">
+                  <button 
+                    onClick={togglePublicSpreadsheet}
+                    className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${
+                      rows.length > 0 && rows.every(r => r.isPublic)
+                        ? 'bg-emerald-500 text-white' 
+                        : 'text-slate-500 hover:bg-slate-50'
+                    }`}
+                    title="Tornar planilha pública para visualização"
+                  >
+                    {rows.length > 0 && rows.every(r => r.isPublic) ? 'Pública' : 'Privada'}
+                  </button>
+                  {rows.length > 0 && rows.every(r => r.isPublic) && (
+                    <button 
+                      onClick={sharePublicLink}
+                      className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
+                      title="Copiar link público"
+                    >
+                      {copySuccess ? <Check size={14} className="text-emerald-500" /> : <Share2 size={14} />}
+                    </button>
+                  )}
+                </div>
               </div>
             )}
 
-            {isDashboardOnly && (
-              <button 
-                onClick={() => window.location.href = window.location.pathname}
-                className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-xl text-sm font-black uppercase tracking-wider hover:bg-slate-50 transition-colors text-slate-700 shadow-sm"
-              >
-                <ExternalLink size={16} />
-                Voltar para Planilha
-              </button>
+            {(isDashboardOnly || isPublicView) && (
+              <div className="flex items-center gap-3">
+                {isPublicView && (
+                  <div className="px-4 py-2 bg-emerald-50 text-emerald-700 border border-emerald-100 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                    Modo Visualização Pública
+                  </div>
+                )}
+                <button 
+                  onClick={() => window.location.href = window.location.pathname}
+                  className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-xl text-sm font-black uppercase tracking-wider hover:bg-slate-50 transition-colors text-slate-700 shadow-sm"
+                >
+                  <ExternalLink size={16} />
+                  {isPublicView ? 'Ir para meu Login' : 'Voltar para Planilha'}
+                </button>
+              </div>
             )}
           </header>
 
@@ -846,17 +938,19 @@ export default function App() {
                 </div>
                 
                 <div className="p-6 bg-slate-50/50 border-t border-blue-100 flex flex-col sm:flex-row justify-between items-center gap-6">
-                  <button 
-                    onClick={addRow}
-                    className="w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-blue-700 active:scale-95 transition-all shadow-lg shadow-blue-500/20"
-                  >
-                    <Plus size={16} strokeWidth={3} />
-                    Nova Linha
-                  </button>
+                  {!isPublicView && (
+                    <button 
+                      onClick={addRow}
+                      className="w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-blue-700 active:scale-95 transition-all shadow-lg shadow-blue-500/20"
+                    >
+                      <Plus size={16} strokeWidth={3} />
+                      Nova Linha
+                    </button>
+                  )}
                   <div className="flex items-center gap-3 px-4 py-2 bg-white border border-blue-100 rounded-xl shadow-sm">
                     <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
                     <p className="text-[10px] text-slate-500 font-black uppercase tracking-wider">
-                      Armazenamento Local Ativo
+                      {isPublicView ? 'Visualizando Dados Públicos' : 'Sincronização em Tempo Real'}
                     </p>
                   </div>
                 </div>

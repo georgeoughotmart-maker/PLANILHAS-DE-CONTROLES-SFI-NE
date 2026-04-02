@@ -17,6 +17,7 @@
         "lancadoPlanilha": { "type": "string", "description": "General observations" },
         "externalLink": { "type": "string", "format": "uri", "description": "External link" },
         "isConfirmed": { "type": "boolean", "description": "Whether the row is confirmed/launched" },
+        "isPublic": { "type": "boolean", "description": "Whether the row is visible to anyone with the link" },
         "uid": { "type": "string", "description": "Owner UID" },
         "updatedAt": { "type": "string", "format": "date-time", "description": "Last update timestamp" }
       },

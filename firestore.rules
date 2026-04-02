@@ -61,11 +61,12 @@ service cloud.firestore {
              (!('vencimentoDate' in data) || data.vencimentoDate is string) &&
              (!('lancadoPlanilha' in data) || data.lancadoPlanilha is string) &&
              (!('externalLink' in data) || data.externalLink is string) &&
-             (!('isConfirmed' in data) || data.isConfirmed is bool);
+             (!('isConfirmed' in data) || data.isConfirmed is bool) &&
+             (!('isPublic' in data) || data.isPublic is bool);
     }
 
     match /rows/{rowId} {
-      allow read: if isAuthenticated() && (isDocOwner() || isAdmin());
+      allow read: if (isAuthenticated() && (isDocOwner() || isAdmin())) || (resource.data.isPublic == true);
       allow create: if isAuthenticated() && isValidRow(request.resource.data);
       allow update: if isAuthenticated() && isDocOwner() && isValidRow(request.resource.data);
       allow delete: if isAuthenticated() && (isDocOwner() || isAdmin());
