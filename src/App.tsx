@@ -184,10 +184,13 @@ export default function App() {
   const [editingRow, setEditingRow] = useState<RowData | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [isAuthReady, setIsAuthReady] = useState(false);
+  const [loginError, setLoginError] = useState<string | null>(null);
 
   // Auth listener
   useEffect(() => {
+    console.log("Setting up auth listener...");
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      console.log("Auth state changed:", currentUser ? `User logged in: ${currentUser.email}` : "No user logged in");
       setUser(currentUser);
       setIsAuthReady(true);
     });
@@ -371,6 +374,28 @@ export default function App() {
     setTimeout(() => setCopySuccess(false), 2000);
   };
 
+  const handleLogin = async () => {
+    setLoginError(null);
+    try {
+      console.log("Attempting login with popup...");
+      await signInWithPopup(auth, googleProvider);
+      console.log("Login popup successful");
+    } catch (error: any) {
+      console.error("Login error details:", error);
+      let message = "Erro ao fazer login. Por favor, tente novamente.";
+      
+      if (error.code === 'auth/popup-blocked') {
+        message = "O popup de login foi bloqueado pelo seu navegador. Por favor, permita popups para este site.";
+      } else if (error.code === 'auth/popup-closed-by-user') {
+        message = "O login foi cancelado. Você fechou a janela de login antes de completar o processo.";
+      } else if (error.message) {
+        message = `Erro: ${error.message}`;
+      }
+      
+      setLoginError(message);
+    }
+  };
+
   if (!isLoaded || !isAuthReady) {
     return (
       <div className="min-h-screen bg-[#F8FAFC] flex items-center justify-center">
@@ -389,8 +414,18 @@ export default function App() {
           <h1 className="text-3xl font-black tracking-tight text-slate-900 mb-2">Controle SFI 2026</h1>
           <p className="text-slate-500 mb-10 font-medium">Faça login para acessar e sincronizar sua planilha em qualquer dispositivo.</p>
           
+          {loginError && (
+            <div className="mb-6 p-4 bg-rose-50 border border-rose-100 rounded-2xl text-rose-600 text-sm font-bold flex items-center gap-3">
+              <AlertCircle size={18} className="flex-shrink-0" />
+              <div className="text-left">
+                <p>{loginError}</p>
+                <p className="mt-2 text-xs font-medium opacity-80">Dica: Tente abrir o aplicativo em uma nova aba se o problema persistir.</p>
+              </div>
+            </div>
+          )}
+
           <button 
-            onClick={() => signInWithPopup(auth, googleProvider)}
+            onClick={handleLogin}
             className="w-full py-4 bg-white border-2 border-slate-100 rounded-2xl font-black text-slate-700 hover:border-blue-500 hover:bg-blue-50 transition-all flex items-center justify-center gap-3 shadow-sm active:scale-[0.98]"
           >
             <img src="https://www.google.com/favicon.ico" className="w-5 h-5" alt="Google" />
