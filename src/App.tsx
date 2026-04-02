@@ -426,7 +426,13 @@ export default function App() {
       console.log("Anonymous login successful");
     } catch (error: any) {
       console.error("Guest login error:", error);
-      setLoginError("Erro ao entrar como convidado. Por favor, tente novamente.");
+      let message = "Erro ao entrar como convidado. Por favor, tente novamente.";
+      if (error.code === 'auth/operation-not-allowed') {
+        message = "O login de convidado (Anônimo) não está ativado no Console do Firebase. Por favor, ative-o nas configurações de Autenticação.";
+      } else if (error.message) {
+        message = `Erro: ${error.message}`;
+      }
+      setLoginError(message);
     }
   };
 
