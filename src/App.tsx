@@ -190,6 +190,7 @@ export default function App() {
   const [loginError, setLoginError] = useState<string | null>(null);
   const [isPublicView, setIsPublicView] = useState(false);
   const [publicUserUid, setPublicUserUid] = useState<string | null>(null);
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
 
   // Auth listener
   useEffect(() => {
@@ -256,10 +257,14 @@ export default function App() {
 
   const addRow = async () => {
     if (!user) return;
+    setSaveStatus('saving');
     const newRow = DEFAULT_ROW(user.uid);
     try {
       await setDoc(doc(db, 'rows', newRow.id), newRow);
+      setSaveStatus('saved');
+      setTimeout(() => setSaveStatus('idle'), 2000);
     } catch (error) {
+      setSaveStatus('error');
       handleFirestoreError(error, OperationType.CREATE, `rows/${newRow.id}`);
     }
   };
@@ -287,6 +292,7 @@ export default function App() {
     const row = rows.find(r => r.id === id);
     if (!row) return;
 
+    setSaveStatus('saving');
     const updatedData: any = { [field]: value };
     if (field === 'obDate' || field === 'obValidityDays') {
       const obDate = field === 'obDate' ? value : row.obDate;
@@ -296,7 +302,10 @@ export default function App() {
 
     try {
       await updateDoc(doc(db, 'rows', id), updatedData);
+      setSaveStatus('saved');
+      setTimeout(() => setSaveStatus('idle'), 2000);
     } catch (error) {
+      setSaveStatus('error');
       handleFirestoreError(error, OperationType.UPDATE, `rows/${id}`);
     }
   };
@@ -605,6 +614,19 @@ export default function App() {
                     </button>
                   )}
                 </div>
+
+                {saveStatus !== 'idle' && (
+                  <div className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2 transition-all ${
+                    saveStatus === 'saving' ? 'bg-blue-50 text-blue-600 animate-pulse' :
+                    saveStatus === 'saved' ? 'bg-emerald-50 text-emerald-600' :
+                    'bg-rose-50 text-rose-600'
+                  }`}>
+                    {saveStatus === 'saving' && <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />}
+                    {saveStatus === 'saved' && <Check size={12} />}
+                    {saveStatus === 'error' && <AlertCircle size={12} />}
+                    {saveStatus === 'saving' ? 'Salvando...' : saveStatus === 'saved' ? 'Salvo' : 'Erro ao Salvar'}
+                  </div>
+                )}
               </div>
             )}
 
@@ -616,6 +638,20 @@ export default function App() {
                     Modo Visualização Pública
                   </div>
                 )}
+                
+                {saveStatus !== 'idle' && (
+                  <div className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2 transition-all ${
+                    saveStatus === 'saving' ? 'bg-blue-50 text-blue-600 animate-pulse' :
+                    saveStatus === 'saved' ? 'bg-emerald-50 text-emerald-600' :
+                    'bg-rose-50 text-rose-600'
+                  }`}>
+                    {saveStatus === 'saving' && <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />}
+                    {saveStatus === 'saved' && <Check size={12} />}
+                    {saveStatus === 'error' && <AlertCircle size={12} />}
+                    {saveStatus === 'saving' ? 'Salvando...' : saveStatus === 'saved' ? 'Salvo' : 'Erro ao Salvar'}
+                  </div>
+                )}
+
                 <button 
                   onClick={() => window.location.href = window.location.pathname}
                   className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-xl text-sm font-black uppercase tracking-wider hover:bg-slate-50 transition-colors text-slate-700 shadow-sm"
