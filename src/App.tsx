@@ -158,6 +158,7 @@ interface RowData {
   externalLink: string;
   isConfirmed: boolean;
   isPublic?: boolean;
+  allowPublicEdit?: boolean;
 }
 
 const DEFAULT_ROW = (uid: string): RowData => ({
@@ -175,6 +176,7 @@ const DEFAULT_ROW = (uid: string): RowData => ({
   externalLink: '',
   isConfirmed: false,
   isPublic: false,
+  allowPublicEdit: false,
 });
 
 export default function App() {
@@ -288,7 +290,6 @@ export default function App() {
   };
 
   const updateRow = async (id: string, field: keyof RowData, value: any) => {
-    if (!user) return;
     const row = rows.find(r => r.id === id);
     if (!row) return;
 
@@ -447,15 +448,38 @@ export default function App() {
 
   const togglePublicSpreadsheet = async () => {
     if (!user) return;
-    const newPublicStatus = !rows.every(r => r.isPublic);
+    const isCurrentlyPublic = rows.length > 0 && rows.every(r => r.isPublic);
+    const newPublicStatus = !isCurrentlyPublic;
     
     try {
-      // Update all rows to the new public status
+      setSaveStatus('saving');
       const promises = rows.map(row => 
-        updateDoc(doc(db, 'rows', row.id), { isPublic: newPublicStatus })
+        updateDoc(doc(db, 'rows', row.id), { isPublic: newPublicStatus, allowPublicEdit: false })
       );
       await Promise.all(promises);
+      setSaveStatus('saved');
+      setTimeout(() => setSaveStatus('idle'), 2000);
     } catch (error) {
+      setSaveStatus('error');
+      handleFirestoreError(error, OperationType.UPDATE, 'rows/multiple');
+    }
+  };
+
+  const togglePublicEdit = async () => {
+    if (!user) return;
+    const isCurrentlyEditable = rows.length > 0 && rows.every(r => r.allowPublicEdit);
+    const newEditStatus = !isCurrentlyEditable;
+    
+    try {
+      setSaveStatus('saving');
+      const promises = rows.map(row => 
+        updateDoc(doc(db, 'rows', row.id), { allowPublicEdit: newEditStatus })
+      );
+      await Promise.all(promises);
+      setSaveStatus('saved');
+      setTimeout(() => setSaveStatus('idle'), 2000);
+    } catch (error) {
+      setSaveStatus('error');
       handleFirestoreError(error, OperationType.UPDATE, 'rows/multiple');
     }
   };
@@ -487,6 +511,16 @@ export default function App() {
           </div>
           <h1 className="text-3xl font-black tracking-tight text-slate-900 mb-2">Controle SFI 2026</h1>
           <p className="text-slate-500 mb-10 font-medium">Faça login para acessar e sincronizar sua planilha em qualquer dispositivo.</p>
+          
+          <div className="mb-8 p-5 bg-blue-50 border border-blue-100 rounded-3xl text-left">
+            <h3 className="text-xs font-black text-blue-800 uppercase tracking-widest mb-2 flex items-center gap-2">
+              <AlertCircle size={14} />
+              Aviso sobre Sincronização
+            </h3>
+            <p className="text-xs text-blue-600 font-medium leading-relaxed">
+              Para acessar os mesmos dados em diferentes navegadores ou dispositivos, você <strong>deve usar o Login Google</strong>. O modo Convidado é exclusivo para o navegador onde foi criado.
+            </p>
+          </div>
           
           {loginError && (
             <div className="mb-6 p-4 bg-rose-50 border border-rose-100 rounded-2xl text-rose-600 text-sm font-bold flex items-center gap-3">
@@ -605,13 +639,26 @@ export default function App() {
                     {rows.length > 0 && rows.every(r => r.isPublic) ? 'Pública' : 'Privada'}
                   </button>
                   {rows.length > 0 && rows.every(r => r.isPublic) && (
-                    <button 
-                      onClick={sharePublicLink}
-                      className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
-                      title="Copiar link público"
-                    >
-                      {copySuccess ? <Check size={14} className="text-emerald-500" /> : <Share2 size={14} />}
-                    </button>
+                    <>
+                      <button 
+                        onClick={togglePublicEdit}
+                        className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${
+                          rows.every(r => r.allowPublicEdit)
+                            ? 'bg-amber-500 text-white' 
+                            : 'text-slate-500 hover:bg-slate-50'
+                        }`}
+                        title="Permitir que qualquer pessoa com o link edite"
+                      >
+                        {rows.every(r => r.allowPublicEdit) ? 'Edição Ativa' : 'Apenas Ver'}
+                      </button>
+                      <button 
+                        onClick={sharePublicLink}
+                        className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
+                        title="Copiar link público"
+                      >
+                        {copySuccess ? <Check size={14} className="text-emerald-500" /> : <Share2 size={14} />}
+                      </button>
+                    </>
                   )}
                 </div>
 
@@ -768,12 +815,12 @@ export default function App() {
                   </p>
                 </div>
                 <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4 transition-all hover:shadow-md group">
-                  <div className="p-3 rounded-xl transition-all group-hover:scale-110 bg-blue-50 text-blue-600 border border-blue-100">
+                  <div className="p-3 rounded-xl transition-all group-hover:scale-110 bg-emerald-50 text-emerald-600 border border-emerald-100">
                     <Check size={24} strokeWidth={3} />
                   </div>
                   <div>
                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-0.5">Status do Sistema</p>
-                    <p className="text-base font-black text-slate-800 tracking-tight">Offline (Local)</p>
+                    <p className="text-base font-black text-slate-800 tracking-tight">Sincronizado (Nuvem)</p>
                   </div>
                 </div>
               </div>
@@ -980,7 +1027,7 @@ export default function App() {
                 </div>
                 
                 <div className="p-6 bg-slate-50/50 border-t border-blue-100 flex flex-col sm:flex-row justify-between items-center gap-6">
-                  {!isPublicView && (
+                  {(!isPublicView || (rows.length > 0 && rows.every(r => r.allowPublicEdit))) && (
                     <button 
                       onClick={addRow}
                       className="w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-blue-700 active:scale-95 transition-all shadow-lg shadow-blue-500/20"

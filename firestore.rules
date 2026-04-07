@@ -50,7 +50,6 @@ service cloud.firestore {
       return data.keys().hasAll(['id', 'uid']) &&
              data.id is string &&
              data.uid is string &&
-             data.uid == request.auth.uid &&
              (!('neNumber' in data) || data.neNumber is string) &&
              (!('type' in data) || data.type in ['Consumo', 'Serviço', 'Extra', '']) &&
              (!('obDate' in data) || data.obDate is string) &&
@@ -62,13 +61,15 @@ service cloud.firestore {
              (!('lancadoPlanilha' in data) || data.lancadoPlanilha is string) &&
              (!('externalLink' in data) || data.externalLink is string) &&
              (!('isConfirmed' in data) || data.isConfirmed is bool) &&
-             (!('isPublic' in data) || data.isPublic is bool);
+             (!('isPublic' in data) || data.isPublic is bool) &&
+             (!('allowPublicEdit' in data) || data.allowPublicEdit is bool);
     }
 
     match /rows/{rowId} {
       allow read: if (isAuthenticated() && (isDocOwner() || isAdmin())) || (resource.data.isPublic == true);
-      allow create: if isAuthenticated() && isValidRow(request.resource.data);
-      allow update: if isAuthenticated() && isDocOwner() && isValidRow(request.resource.data);
+      allow create: if isAuthenticated() && isValidRow(request.resource.data) && request.resource.data.uid == request.auth.uid;
+      allow update: if (isAuthenticated() && isDocOwner() && isValidRow(request.resource.data)) || 
+                      (resource.data.allowPublicEdit == true && isValidRow(request.resource.data) && request.resource.data.uid == resource.data.uid);
       allow delete: if isAuthenticated() && (isDocOwner() || isAdmin());
     }
 

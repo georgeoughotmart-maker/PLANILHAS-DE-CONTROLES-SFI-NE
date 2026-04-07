@@ -18,6 +18,7 @@
         "externalLink": { "type": "string", "format": "uri", "description": "External link" },
         "isConfirmed": { "type": "boolean", "description": "Whether the row is confirmed/launched" },
         "isPublic": { "type": "boolean", "description": "Whether the row is visible to anyone with the link" },
+        "allowPublicEdit": { "type": "boolean", "description": "Whether anyone with the link can edit this row" },
         "uid": { "type": "string", "description": "Owner UID" },
         "updatedAt": { "type": "string", "format": "date-time", "description": "Last update timestamp" }
       },
