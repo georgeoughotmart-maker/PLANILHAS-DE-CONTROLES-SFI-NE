@@ -1,82 +1,8 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // ===============================================================
-    // Assumed Data Model
-    // ===============================================================
-    //
-    // Collection: rows
-    // Document ID: rowId
-    // Fields:
-    //   - id: string (required) - unique identifier for the row
-    //   - neNumber: string (optional) - NE Identification number
-    //   - type: string (optional) - enum: ["Consumo", "Serviço", "Extra", ""]
-    //   - obDate: string (optional) - OB Date
-    //   - obValidityDays: string (optional) - Validity in days
-    //   - value: string (optional) - Gross value
-    //   - reDate: string (optional) - RE Date
-    //   - prestacaoDate: string (optional) - Prestação Date
-    //   - vencimentoDate: string (optional) - Expiration Date
-    //   - lancadoPlanilha: string (optional) - General observations
-    //   - externalLink: string (optional) - External link
-    //   - isConfirmed: boolean (optional) - Whether the row is confirmed/launched
-    //   - uid: string (required) - Owner UID
-    //   - updatedAt: timestamp (optional) - Last update timestamp
-    //
-    // ===============================================================
-
-    // ===============================================================
-    // Helper Functions
-    // ===============================================================
-    function isAuthenticated() {
-      return request.auth != null;
-    }
-
-    function isOwner(userId) {
-      return isAuthenticated() && request.auth.uid == userId;
-    }
-
-    function isDocOwner() {
-      return isAuthenticated() && request.auth.uid == resource.data.uid;
-    }
-
-    function isAdmin() {
-      return isAuthenticated() &&
-        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
-          (request.auth.token.email == "georgeoughotmart@gmail.com" && request.auth.token.email_verified == true));
-    }
-
-    function isValidRow(data) {
-      return data.keys().hasAll(['id', 'uid']) &&
-             data.id is string &&
-             data.uid is string &&
-             (!('neNumber' in data) || data.neNumber is string) &&
-             (!('type' in data) || data.type in ['Consumo', 'Serviço', 'Extra', '']) &&
-             (!('obDate' in data) || data.obDate is string) &&
-             (!('obValidityDays' in data) || data.obValidityDays is string) &&
-             (!('value' in data) || data.value is string) &&
-             (!('reDate' in data) || data.reDate is string) &&
-             (!('prestacaoDate' in data) || data.prestacaoDate is string) &&
-             (!('vencimentoDate' in data) || data.vencimentoDate is string) &&
-             (!('lancadoPlanilha' in data) || data.lancadoPlanilha is string) &&
-             (!('externalLink' in data) || data.externalLink is string) &&
-             (!('isConfirmed' in data) || data.isConfirmed is bool) &&
-             (!('isPublic' in data) || data.isPublic is bool) &&
-             (!('allowPublicEdit' in data) || data.allowPublicEdit is bool);
-    }
-
     match /rows/{rowId} {
-      allow read: if (isAuthenticated() && (isDocOwner() || isAdmin())) || (resource.data.isPublic == true);
-      allow create: if isAuthenticated() && isValidRow(request.resource.data) && request.resource.data.uid == request.auth.uid;
-      allow update: if (isAuthenticated() && isDocOwner() && isValidRow(request.resource.data)) || 
-                      (resource.data.allowPublicEdit == true && isValidRow(request.resource.data) && request.resource.data.uid == resource.data.uid);
-      allow delete: if isAuthenticated() && (isDocOwner() || isAdmin());
-    }
-
-    match /users/{userId} {
-      allow read: if isAuthenticated() && (isOwner(userId) || isAdmin());
-      allow create: if isAuthenticated() && isOwner(userId) && request.resource.data.role == 'user';
-      allow update: if isAuthenticated() && (isOwner(userId) && request.resource.data.role == resource.data.role) || isAdmin();
+      allow read, write: if true;
     }
   }
 }

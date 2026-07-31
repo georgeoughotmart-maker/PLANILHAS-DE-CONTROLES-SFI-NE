@@ -3,11 +3,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { Component, useState, useEffect, useCallback, useRef } from 'react';
+import React, { Component, useState, useEffect } from 'react';
 import { 
-  Plus, Trash2, Save, Download, Upload, Search, FileSpreadsheet, 
+  Plus, Trash2, Search, FileSpreadsheet, 
   AlertCircle, Check, BarChart3, PieChart as PieChartIcon, 
-  LayoutDashboard, X, Share2, ExternalLink, Copy, Pencil, LogIn, LogOut, User as UserIcon
+  LayoutDashboard, X, Pencil, Copy, ExternalLink
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
@@ -24,8 +24,8 @@ import {
   Legend
 } from 'recharts';
 import { 
-  db, auth, googleProvider, signInWithPopup, signOut, onAuthStateChanged, 
-  collection, doc, setDoc, updateDoc, deleteDoc, onSnapshot, query, where, User, signInAnonymously
+  db, 
+  collection, doc, setDoc, updateDoc, deleteDoc, onSnapshot, query, orderBy
 } from './firebase';
 
 enum OperationType {
@@ -43,16 +43,6 @@ interface FirestoreErrorInfo {
   path: string | null;
   authInfo: {
     userId: string | undefined;
-    email: string | null | undefined;
-    emailVerified: boolean | undefined;
-    isAnonymous: boolean | undefined;
-    tenantId: string | null | undefined;
-    providerInfo: {
-      providerId: string;
-      displayName: string | null;
-      email: string | null;
-      photoUrl: string | null;
-    }[];
   }
 }
 
@@ -60,17 +50,7 @@ function handleFirestoreError(error: unknown, operationType: OperationType, path
   const errInfo: FirestoreErrorInfo = {
     error: error instanceof Error ? error.message : String(error),
     authInfo: {
-      userId: auth.currentUser?.uid,
-      email: auth.currentUser?.email,
-      emailVerified: auth.currentUser?.emailVerified,
-      isAnonymous: auth.currentUser?.isAnonymous,
-      tenantId: auth.currentUser?.tenantId,
-      providerInfo: auth.currentUser?.providerData.map(provider => ({
-        providerId: provider.providerId,
-        displayName: provider.displayName,
-        email: provider.email,
-        photoUrl: provider.photoURL
-      })) || []
+      userId: 'public_user'
     },
     operationType,
     path
@@ -97,20 +77,6 @@ class ErrorBoundary extends Component<any, any> {
   render() {
     if ((this as any).state.hasError) {
       let errorMessage = "Ocorreu um erro inesperado. Por favor, tente recarregar a página.";
-      let isFirebaseError = false;
-
-      try {
-        const errorStr = String((this as any).state.error);
-        if (errorStr.includes('operationType')) {
-          const errData = JSON.parse(errorStr.replace('Error: ', ''));
-          if (errData.error.includes('permission-denied')) {
-            errorMessage = "Você não tem permissão para realizar esta operação ou acessar estes dados.";
-            isFirebaseError = true;
-          }
-        }
-      } catch (e) {
-        // Fallback to default message
-      }
 
       return (
         <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
@@ -140,8 +106,6 @@ class ErrorBoundary extends Component<any, any> {
     return (this as any).props.children;
   }
 }
-
-
 
 interface RowData {
   id: string;
@@ -175,8 +139,8 @@ const DEFAULT_ROW = (uid: string): RowData => ({
   lancadoPlanilha: '',
   externalLink: '',
   isConfirmed: false,
-  isPublic: false,
-  allowPublicEdit: false,
+  isPublic: true,
+  allowPublicEdit: true,
 });
 
 export default function App() {
@@ -184,67 +148,25 @@ export default function App() {
   const [searchTerm, setSearchTerm] = useState('');
   const [isLoaded, setIsLoaded] = useState(false);
   const [showDashboard, setShowDashboard] = useState(false);
-  const [isDashboardOnly, setIsDashboardOnly] = useState(false);
-  const [copySuccess, setCopySuccess] = useState(false);
   const [editingRow, setEditingRow] = useState<RowData | null>(null);
-  const [user, setUser] = useState<User | null>(null);
-  const [isAuthReady, setIsAuthReady] = useState(false);
-  const [loginError, setLoginError] = useState<string | null>(null);
-  const [isPublicView, setIsPublicView] = useState(false);
-  const [publicUserUid, setPublicUserUid] = useState<string | null>(null);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
 
-  // Auth listener
-  useEffect(() => {
-    console.log("Setting up auth listener...");
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      console.log("Auth state changed:", currentUser ? `User logged in: ${currentUser.uid} (Anonymous: ${currentUser.isAnonymous})` : "No user logged in");
-      setUser(currentUser);
-      setIsAuthReady(true);
-    });
-    return () => unsubscribe();
-  }, []);
-
-  // Check if we are in "Public View" or "Dashboard Only" mode via URL
+  // Check if we are in "Dashboard Only" mode via URL
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const view = params.get('view');
-    const userUid = params.get('user');
     
     if (view === 'dashboard') {
-      setIsDashboardOnly(true);
       setShowDashboard(true);
-    }
-    
-    if (view === 'public' && userUid) {
-      setIsPublicView(true);
-      setPublicUserUid(userUid);
     }
   }, []);
 
-  // Firestore listener
+  // Firestore listener - connects directly for all devices
   useEffect(() => {
-    if (!isAuthReady) return;
-
-    let q;
-    if (isPublicView && publicUserUid) {
-      // Public view: fetch rows for specific user that are marked as public
-      q = query(
-        collection(db, 'rows'),
-        where('uid', '==', publicUserUid),
-        where('isPublic', '==', true)
-      );
-    } else if (user) {
-      // Private view: fetch rows for logged-in user
-      q = query(
-        collection(db, 'rows'),
-        where('uid', '==', user.uid)
-      );
-    } else {
-      setRows([]);
-      setIsLoaded(true);
-      return;
-    }
+    const q = query(
+      collection(db, 'rows'),
+      orderBy('obDate', 'desc')
+    );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const fetchedRows = snapshot.docs.map(doc => doc.data() as RowData);
@@ -255,12 +177,11 @@ export default function App() {
     });
 
     return () => unsubscribe();
-  }, [isAuthReady, user, isPublicView, publicUserUid]);
+  }, []);
 
   const addRow = async () => {
-    if (!user) return;
     setSaveStatus('saving');
-    const newRow = DEFAULT_ROW(user.uid);
+    const newRow = DEFAULT_ROW('shared'); 
     try {
       await setDoc(doc(db, 'rows', newRow.id), newRow);
       setSaveStatus('saved');
@@ -273,10 +194,6 @@ export default function App() {
 
   const calculateVencimento = (obDate: string, validityDays: string) => {
     if (!obDate || !validityDays) return '';
-    const date = new Date(obDate);
-    // Add 1 day to account for timezone offset if needed, but usually YYYY-MM-DD is UTC-ish in Date constructor
-    // Actually, Date constructor with YYYY-MM-DD treats it as UTC.
-    // Let's use a more robust way to avoid timezone shifts.
     const [year, month, day] = obDate.split('-').map(Number);
     const d = new Date(year, month - 1, day);
     const days = parseInt(validityDays);
@@ -319,7 +236,6 @@ export default function App() {
   };
 
   const deleteRow = async (id: string) => {
-    if (!user) return;
     if (window.confirm('Tem certeza que deseja excluir esta linha?')) {
       try {
         await deleteDoc(doc(db, 'rows', id));
@@ -330,14 +246,13 @@ export default function App() {
   };
 
   const duplicateRow = async (id: string) => {
-    if (!user) return;
     const rowToDuplicate = rows.find(r => r.id === id);
     if (rowToDuplicate) {
       const newRow = { 
         ...rowToDuplicate, 
         id: crypto.randomUUID(), 
         isConfirmed: false,
-        uid: user.uid
+        uid: 'shared'
       };
       try {
         await setDoc(doc(db, 'rows', newRow.id), newRow);
@@ -398,103 +313,7 @@ export default function App() {
 
   const totalValue = rows.reduce((acc, row) => acc + parseValue(row.value), 0);
 
-  const shareDashboard = () => {
-    const url = new URL(window.location.origin + window.location.pathname);
-    url.searchParams.set('view', 'dashboard');
-    navigator.clipboard.writeText(url.toString());
-    setCopySuccess(true);
-    setTimeout(() => setCopySuccess(false), 2000);
-  };
-
-  const handleLogin = async () => {
-    setLoginError(null);
-    try {
-      console.log("Attempting login with popup...");
-      await signInWithPopup(auth, googleProvider);
-      console.log("Login popup successful");
-    } catch (error: any) {
-      console.error("Login error details:", error);
-      let message = "Erro ao fazer login. Por favor, tente novamente.";
-      
-      if (error.code === 'auth/popup-blocked') {
-        message = "O popup de login foi bloqueado pelo seu navegador. Por favor, permita popups para este site.";
-      } else if (error.code === 'auth/popup-closed-by-user') {
-        message = "O login foi cancelado. Você fechou a janela de login antes de completar o processo.";
-      } else if (error.message) {
-        message = `Erro: ${error.message}`;
-      }
-      
-      setLoginError(message);
-    }
-  };
-
-  const handleGuestLogin = async () => {
-    setLoginError(null);
-    try {
-      console.log("Attempting anonymous login...");
-      await signInAnonymously(auth);
-      console.log("Anonymous login successful");
-    } catch (error: any) {
-      console.error("Guest login error:", error);
-      let message = "Erro ao entrar como convidado. Por favor, tente novamente.";
-      if (error.code === 'auth/operation-not-allowed') {
-        message = "O login de convidado (Anônimo) não está ativado no Console do Firebase. Por favor, ative-o nas configurações de Autenticação.";
-      } else if (error.message) {
-        message = `Erro: ${error.message}`;
-      }
-      setLoginError(message);
-    }
-  };
-
-  const togglePublicSpreadsheet = async () => {
-    if (!user) return;
-    const isCurrentlyPublic = rows.length > 0 && rows.every(r => r.isPublic);
-    const newPublicStatus = !isCurrentlyPublic;
-    
-    try {
-      setSaveStatus('saving');
-      const promises = rows.map(row => 
-        updateDoc(doc(db, 'rows', row.id), { isPublic: newPublicStatus, allowPublicEdit: false })
-      );
-      await Promise.all(promises);
-      setSaveStatus('saved');
-      setTimeout(() => setSaveStatus('idle'), 2000);
-    } catch (error) {
-      setSaveStatus('error');
-      handleFirestoreError(error, OperationType.UPDATE, 'rows/multiple');
-    }
-  };
-
-  const togglePublicEdit = async () => {
-    if (!user) return;
-    const isCurrentlyEditable = rows.length > 0 && rows.every(r => r.allowPublicEdit);
-    const newEditStatus = !isCurrentlyEditable;
-    
-    try {
-      setSaveStatus('saving');
-      const promises = rows.map(row => 
-        updateDoc(doc(db, 'rows', row.id), { allowPublicEdit: newEditStatus })
-      );
-      await Promise.all(promises);
-      setSaveStatus('saved');
-      setTimeout(() => setSaveStatus('idle'), 2000);
-    } catch (error) {
-      setSaveStatus('error');
-      handleFirestoreError(error, OperationType.UPDATE, 'rows/multiple');
-    }
-  };
-
-  const sharePublicLink = () => {
-    if (!user) return;
-    const url = new URL(window.location.origin + window.location.pathname);
-    url.searchParams.set('view', 'public');
-    url.searchParams.set('user', user.uid);
-    navigator.clipboard.writeText(url.toString());
-    setCopySuccess(true);
-    setTimeout(() => setCopySuccess(false), 2000);
-  };
-
-  if (!isLoaded || !isAuthReady) {
+  if (!isLoaded) {
     return (
       <div className="min-h-screen bg-[#F8FAFC] flex items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
@@ -502,59 +321,6 @@ export default function App() {
     );
   }
 
-  if (!user && !isDashboardOnly) {
-    return (
-      <div className="min-h-screen bg-[#F8FAFC] flex items-center justify-center p-4">
-        <div className="bg-white p-10 rounded-[2.5rem] shadow-2xl border border-blue-100 max-w-md w-full text-center">
-          <div className="p-4 bg-blue-600 rounded-3xl shadow-xl shadow-blue-200 w-20 h-20 flex items-center justify-center mx-auto mb-8">
-            <FileSpreadsheet className="text-white" size={40} />
-          </div>
-          <h1 className="text-3xl font-black tracking-tight text-slate-900 mb-2">Controle SFI 2026</h1>
-          <p className="text-slate-500 mb-10 font-medium">Faça login para acessar e sincronizar sua planilha em qualquer dispositivo.</p>
-          
-          <div className="mb-8 p-5 bg-blue-50 border border-blue-100 rounded-3xl text-left">
-            <h3 className="text-xs font-black text-blue-800 uppercase tracking-widest mb-2 flex items-center gap-2">
-              <AlertCircle size={14} />
-              Aviso sobre Sincronização
-            </h3>
-            <p className="text-xs text-blue-600 font-medium leading-relaxed">
-              Para acessar os mesmos dados em diferentes navegadores ou dispositivos, você <strong>deve usar o Login Google</strong>. O modo Convidado é exclusivo para o navegador onde foi criado.
-            </p>
-          </div>
-          
-          {loginError && (
-            <div className="mb-6 p-4 bg-rose-50 border border-rose-100 rounded-2xl text-rose-600 text-sm font-bold flex items-center gap-3">
-              <AlertCircle size={18} className="flex-shrink-0" />
-              <div className="text-left">
-                <p>{loginError}</p>
-                <p className="mt-2 text-xs font-medium opacity-80">Dica: Tente abrir o aplicativo em uma nova aba se o problema persistir.</p>
-              </div>
-            </div>
-          )}
-
-          <button 
-            onClick={handleLogin}
-            className="w-full py-4 bg-white border-2 border-slate-100 rounded-2xl font-black text-slate-700 hover:border-blue-500 hover:bg-blue-50 transition-all flex items-center justify-center gap-3 shadow-sm active:scale-[0.98]"
-          >
-            <img src="https://www.google.com/favicon.ico" className="w-5 h-5" alt="Google" />
-            Entrar com Google
-          </button>
-
-          <button 
-            onClick={handleGuestLogin}
-            className="w-full mt-4 py-4 bg-slate-100 rounded-2xl font-black text-slate-600 hover:bg-slate-200 transition-all flex items-center justify-center gap-3 active:scale-[0.98]"
-          >
-            <UserIcon size={20} />
-            Entrar como Convidado
-          </button>
-          
-          <div className="mt-10 pt-8 border-t border-slate-100">
-            <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Desenvolvido para Gestão de OBs</p>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <ErrorBoundary>
@@ -576,138 +342,43 @@ export default function App() {
               </div>
             </div>
 
-            {!isDashboardOnly && !isPublicView && (
-              <div className="flex flex-wrap items-center gap-3">
-                {user && (
-                  <div className="flex items-center gap-3 mr-4 bg-white px-4 py-1.5 rounded-2xl border border-blue-50 shadow-sm">
-                    <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center overflow-hidden border border-blue-200">
-                      {user.photoURL ? (
-                        <img src={user.photoURL} alt={user.displayName || ''} referrerPolicy="no-referrer" />
-                      ) : (
-                        <UserIcon size={16} className="text-blue-600" />
-                      )}
-                    </div>
-                    <div className="hidden sm:block">
-                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider leading-none mb-0.5">
-                        {user.isAnonymous ? 'Convidado' : 'Usuário'}
-                      </p>
-                      <p className="text-xs font-bold text-slate-700 leading-none">{user.displayName || user.email || 'Anônimo'}</p>
-                    </div>
-                    <button 
-                      onClick={() => signOut(auth)}
-                      className="ml-2 p-1.5 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-all"
-                      title="Sair"
-                    >
-                      <LogOut size={16} />
-                    </button>
-                  </div>
-                )}
-
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-                  <input 
-                    type="text" 
-                    placeholder="Pesquisar..." 
-                    className="pl-10 pr-4 py-2 bg-white border border-blue-100 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all w-full md:w-64 shadow-sm"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                  />
-                </div>
-                
-                <button 
-                  onClick={() => setShowDashboard(!showDashboard)}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-black uppercase tracking-wider transition-all ${
-                    showDashboard 
-                      ? 'bg-blue-600 text-white shadow-md shadow-blue-200' 
-                      : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 shadow-sm'
-                  }`}
-                >
-                  <LayoutDashboard size={16} />
-                  Dashboard
-                </button>
-
-                <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-xl p-1 shadow-sm">
-                  <button 
-                    onClick={togglePublicSpreadsheet}
-                    className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${
-                      rows.length > 0 && rows.every(r => r.isPublic)
-                        ? 'bg-emerald-500 text-white' 
-                        : 'text-slate-500 hover:bg-slate-50'
-                    }`}
-                    title="Tornar planilha pública para visualização"
-                  >
-                    {rows.length > 0 && rows.every(r => r.isPublic) ? 'Pública' : 'Privada'}
-                  </button>
-                  {rows.length > 0 && rows.every(r => r.isPublic) && (
-                    <>
-                      <button 
-                        onClick={togglePublicEdit}
-                        className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${
-                          rows.every(r => r.allowPublicEdit)
-                            ? 'bg-amber-500 text-white' 
-                            : 'text-slate-500 hover:bg-slate-50'
-                        }`}
-                        title="Permitir que qualquer pessoa com o link edite"
-                      >
-                        {rows.every(r => r.allowPublicEdit) ? 'Edição Ativa' : 'Apenas Ver'}
-                      </button>
-                      <button 
-                        onClick={sharePublicLink}
-                        className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
-                        title="Copiar link público"
-                      >
-                        {copySuccess ? <Check size={14} className="text-emerald-500" /> : <Share2 size={14} />}
-                      </button>
-                    </>
-                  )}
-                </div>
-
-                {saveStatus !== 'idle' && (
-                  <div className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2 transition-all ${
-                    saveStatus === 'saving' ? 'bg-blue-50 text-blue-600 animate-pulse' :
-                    saveStatus === 'saved' ? 'bg-emerald-50 text-emerald-600' :
-                    'bg-rose-50 text-rose-600'
-                  }`}>
-                    {saveStatus === 'saving' && <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />}
-                    {saveStatus === 'saved' && <Check size={12} />}
-                    {saveStatus === 'error' && <AlertCircle size={12} />}
-                    {saveStatus === 'saving' ? 'Salvando...' : saveStatus === 'saved' ? 'Salvo' : 'Erro ao Salvar'}
-                  </div>
-                )}
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                <input 
+                  type="text" 
+                  placeholder="Pesquisar..." 
+                  className="pl-10 pr-4 py-2 bg-white border border-blue-100 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all w-full md:w-64 shadow-sm"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
               </div>
-            )}
+              
+              <button 
+                onClick={() => setShowDashboard(!showDashboard)}
+                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-black uppercase tracking-wider transition-all ${
+                  showDashboard 
+                    ? 'bg-blue-600 text-white shadow-md shadow-blue-200' 
+                    : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 shadow-sm'
+                }`}
+              >
+                <LayoutDashboard size={16} />
+                Dashboard
+              </button>
 
-            {(isDashboardOnly || isPublicView) && (
-              <div className="flex items-center gap-3">
-                {isPublicView && (
-                  <div className="px-4 py-2 bg-emerald-50 text-emerald-700 border border-emerald-100 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2">
-                    <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                    Modo Visualização Pública
-                  </div>
-                )}
-                
-                {saveStatus !== 'idle' && (
-                  <div className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2 transition-all ${
-                    saveStatus === 'saving' ? 'bg-blue-50 text-blue-600 animate-pulse' :
-                    saveStatus === 'saved' ? 'bg-emerald-50 text-emerald-600' :
-                    'bg-rose-50 text-rose-600'
-                  }`}>
-                    {saveStatus === 'saving' && <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />}
-                    {saveStatus === 'saved' && <Check size={12} />}
-                    {saveStatus === 'error' && <AlertCircle size={12} />}
-                    {saveStatus === 'saving' ? 'Salvando...' : saveStatus === 'saved' ? 'Salvo' : 'Erro ao Salvar'}
-                  </div>
-                )}
-
-                <button 
-                  onClick={() => window.location.href = window.location.pathname}
-                  className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-xl text-sm font-black uppercase tracking-wider hover:bg-slate-50 transition-colors text-slate-700 shadow-sm"
-                >
-                  <ExternalLink size={16} />
-                  {isPublicView ? 'Ir para meu Login' : 'Voltar para Planilha'}
-                </button>
-              </div>
-            )}
+              {saveStatus !== 'idle' && (
+                <div className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2 transition-all ${
+                  saveStatus === 'saving' ? 'bg-blue-50 text-blue-600 animate-pulse' :
+                  saveStatus === 'saved' ? 'bg-emerald-50 text-emerald-600' :
+                  'bg-rose-50 text-rose-600'
+                }`}>
+                  {saveStatus === 'saving' && <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />}
+                  {saveStatus === 'saved' && <Check size={12} />}
+                  {saveStatus === 'error' && <AlertCircle size={12} />}
+                  {saveStatus === 'saving' ? 'Salvando...' : saveStatus === 'saved' ? 'Salvo' : 'Erro ao Salvar'}
+                </div>
+              )}
+            </div>
           </header>
 
           {/* Dashboard Section */}
@@ -797,8 +468,8 @@ export default function App() {
             )}
           </AnimatePresence>
 
-          {!isDashboardOnly && (
-            <>
+          <div className="flex flex-col lg:flex-row gap-8 items-start relative pb-20">
+            <div className="w-full flex-grow">
               {/* Stats Summary */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
                 <div className="bg-white p-6 rounded-2xl border border-blue-100 shadow-sm transition-all hover:shadow-md hover:border-blue-200 group">
@@ -1027,25 +698,23 @@ export default function App() {
                 </div>
                 
                 <div className="p-6 bg-slate-50/50 border-t border-blue-100 flex flex-col sm:flex-row justify-between items-center gap-6">
-                  {(!isPublicView || (rows.length > 0 && rows.every(r => r.allowPublicEdit))) && (
-                    <button 
-                      onClick={addRow}
-                      className="w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-blue-700 active:scale-95 transition-all shadow-lg shadow-blue-500/20"
-                    >
-                      <Plus size={16} strokeWidth={3} />
-                      Nova Linha
-                    </button>
-                  )}
+                  <button 
+                    onClick={addRow}
+                    className="w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-blue-700 active:scale-95 transition-all shadow-lg shadow-blue-500/20"
+                  >
+                    <Plus size={16} strokeWidth={3} />
+                    Nova Linha
+                  </button>
                   <div className="flex items-center gap-3 px-4 py-2 bg-white border border-blue-100 rounded-xl shadow-sm">
                     <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
                     <p className="text-[10px] text-slate-500 font-black uppercase tracking-wider">
-                      {isPublicView ? 'Visualizando Dados Públicos' : 'Sincronização em Tempo Real'}
+                      Sincronização em Tempo Real
                     </p>
                   </div>
                 </div>
               </div>
-            </>
-          )}
+            </div>
+          </div>
 
           {searchTerm && filteredRows.length === 0 && (
             <div className="mt-12 text-center py-12 bg-white rounded-2xl border border-dashed border-slate-300">
@@ -1198,7 +867,6 @@ export default function App() {
                   </button>
                   <button 
                     onClick={async () => {
-                      if (!user) return;
                       try {
                         await setDoc(doc(db, 'rows', editingRow.id), editingRow);
                         setEditingRow(null);
